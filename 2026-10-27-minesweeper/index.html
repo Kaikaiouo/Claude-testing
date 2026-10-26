@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>踩地雷</title>
+<style>
+body{font-family:sans-serif;text-align:center;background:#222;color:#eee}
+#board{display:inline-grid;gap:2px;margin:12px;user-select:none}
+.c{width:30px;height:30px;background:#555;border-radius:3px;font-weight:bold;line-height:30px;cursor:pointer}
+.c.o{background:#ddd;color:#000;cursor:default}.c.x{background:#e44}
+select,button{font-size:1rem;margin:4px}
+</style></head><body>
+<h1>💣 踩地雷</h1>
+<div>難度:<select id="lv"><option value="9,9,10">初級 9×9</option><option value="12,12,25">中級 12×12</option><option value="16,16,40">高級 16×16</option></select>
+<button id="reset">重新開始</button> <span id="info"></span></div>
+<div id="board"></div>
+<p>左鍵翻開、右鍵(或長按)插旗。第一步及周圍保證安全。</p>
+<script src="core.js"></script>
+<script>
+let R,C,M,cells,started,over,flags,timer,t0;
+const $=id=>document.getElementById(id), boardEl=$('board');
+function init(){
+  [R,C,M]=$('lv').value.split(',').map(Number);
+  cells=Array.from({length:R},()=>Array.from({length:C},()=>({mine:false,open:false,flag:false,n:0})));
+  started=false;over=false;flags=0;clearInterval(timer);
+  boardEl.style.gridTemplateColumns=`repeat(${C},30px)`;
+  render('');
+}
+function render(msg){
+  boardEl.innerHTML='';
+  cells.forEach((row,r)=>row.forEach((x,c)=>{
+    const d=document.createElement('div');d.className='c'+(x.open?' o':'')+(x.open&&x.mine?' x':'');
+    d.textContent=x.open?(x.mine?'💥':(x.n||'')):(x.flag?'🚩':'');
+    d.onclick=()=>click(r,c);
+    d.oncontextmenu=e=>{e.preventDefault();flag(r,c)};
+    boardEl.appendChild(d);
+  }));
+  $('info').textContent=msg||`剩餘地雷:${M-flags}`;
+}
+function click(r,c){
+  if(over)return;
+  if(!started){started=true;cells=createBoard(R,C,M,r,c);t0=Date.now();}
+  if(openCell(cells,r,c)==='mine'){
+    over=true;cells.forEach(row=>row.forEach(x=>{if(x.mine)x.open=true}));return render('💥 你踩到地雷了!');
+  }
+  if(isWon(cells)){over=true;return render(`🎉 勝利!用時 ${Math.round((Date.now()-t0)/1000)} 秒`);}
+  render();
+}
+function flag(r,c){
+  const x=cells[r][c];if(over||x.open)return;
+  x.flag=!x.flag;flags+=x.flag?1:-1;render();
+}
+$('reset').onclick=init;$('lv').onchange=init;init();
+</script></body></html>
