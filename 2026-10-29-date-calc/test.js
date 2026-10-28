@@ -1,0 +1,12 @@
+const assert = require('assert');
+const { parse, diffDays, run, isLeap, yearProgress } = require('./datecalc');
+assert.strictEqual(diffDays(parse('2026-10-22'), parse('2026-10-29')), 7);
+assert.strictEqual(diffDays(parse('2024-02-28'), parse('2024-03-01')), 2);
+assert.ok(isLeap(2024) && !isLeap(2100) && isLeap(2000));
+assert.strictEqual(run(['add', '2026-12-31', '1']).includes('2027-01-01'), true);
+assert.strictEqual(run(['add', '2026-03-01', '-1']).includes('2026-02-28'), true);
+assert.strictEqual(run(['weekday', '2026-10-29']), '2026-10-29 是星期四');
+assert.strictEqual(yearProgress(parse('2026-12-31')).day, 365);
+assert.throws(() => parse('2026-02-30'));
+assert.throws(() => parse('abc'));
+console.log('所有測試通過');
