@@ -202,6 +202,32 @@
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
     $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
   }
+  // 拍照辨識(需 sample 能力且 images 可用,否則整個區塊隱藏)
+  let sampleFn = null, scanCtl = null;
+  async function initScan() {
+    try {
+      if (!(window.claude && window.claude.use)) return;
+      const sm = await window.claude.use('sample'); if (!sm) return;
+      const lim = await sm.limits().catch(() => null); if (!lim || !lim.images) return;
+      sampleFn = sm; $('scanFile').accept = lim.images.mediaTypes.join(','); $('scanBox').hidden = false;
+    } catch (e) { /* 沒有就維持手動輸入 */ }
+  }
+  const SCAN_ERR = { not_granted: '你沒有允許使用 Claude,可以手動輸入。', rate_limited: '太頻繁了,請稍後再試。', image_rejected: '這張圖片無法使用,換一張試試。', invalid_json: '沒有讀出內容,請拍清楚一點再試。', cancelled: '已取消。' };
+  $('scanBtn').onclick = () => { if (scanCtl) { scanCtl.abort(); return; } $('scanFile').click(); };
+  $('scanFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f || !sampleFn) return;
+    const msg = $('scanMsg'), btn = $('scanBtn'); scanCtl = new AbortController(); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在讀取包裝…';
+    try {
+      const raw = await sampleFn.json(HK.scanPrompt(today()), { images: [f], modelTier: 'quick', signal: scanCtl.signal });
+      const r = HK.parseScan(raw, today());
+      if (!r) { msg.textContent = '沒有認出品名,請手動輸入。'; return; }
+      $('fName').value = r.name; $('fCat').value = r.category; $('fQty').value = r.quantity; $('fLoc').value = r.location; $('fTemp').value = r.tempC;
+      $('fMfg').value = r.mfg; $('fExpiry').value = r.expiry; $('fEst').checked = r.estimated;
+      msg.textContent = r.readDate ? '已填入,請對照包裝確認日期。' : '包裝日期看不到,到期日用類別估算,請自行確認。';
+    } catch (err) { msg.textContent = SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
+    finally { scanCtl = null; btn.textContent = '📷 拍照/選圖辨識'; }
+  };
+
   const closeForm = () => { $('formWrap').hidden = true; editing = null; shopFrom = null; };
   $('fab').onclick = () => openForm(null);
   $('addWide').onclick = () => openForm(null);
@@ -282,5 +308,5 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; } });
   $('search').addEventListener('input', e => { query = e.target.value; render(); });
   window.__hk = { state: () => state, commit };
-  render(); initCloud();
+  render(); initCloud(); initScan();
 })();

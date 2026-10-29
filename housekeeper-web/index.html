@@ -77,6 +77,7 @@
   .qty { display:flex; align-items:center; gap:8px; } .qty input { text-align:center; width:64px; } .qty button { width:42px; padding:8px 0; }
   .quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; } .quick button { padding:4px 10px; font-size:.8rem; border-radius:999px; }
   .check { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-top:6px; } .check input { width:auto; }
+  .scanbox button { width:100%; padding:10px; border-style:dashed; } .scanbox .note { margin-top:4px; }
   .errs { color:var(--expired); font-size:.85rem; margin-bottom:8px; }
   .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap; } .btns .grow { margin-right:auto; }
   .hbtns { display:flex; gap:6px; } .hbtns button { white-space:nowrap; }
@@ -154,6 +155,7 @@
 <div class="sheetwrap" id="formWrap" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
   <h2 id="formTitle">新增物品</h2>
   <div class="errs" id="formErrs"></div>
+  <div class="field scanbox" id="scanBox" hidden><button type="button" id="scanBtn">📷 拍照/選圖辨識</button><input id="scanFile" type="file" accept="image/*" capture="environment" hidden><div class="note" id="scanMsg" role="status" aria-live="polite">拍下包裝,由 Claude 讀出品名與有效日期(會使用你的 Claude 額度,結果請再確認)。</div></div>
   <div class="field"><label for="fName">名稱</label><input id="fName" maxlength="40" placeholder="例如:鮮奶" autocomplete="off"></div>
   <div class="two">
     <div class="field"><label for="fCat">類別</label><select id="fCat"></select></div>

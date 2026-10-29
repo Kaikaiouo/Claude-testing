@@ -195,6 +195,28 @@
     return [...map.values()];
   }
 
+  // ---- 拍照辨識:組 prompt、驗證 Claude 回傳的 JSON(不信任輸入,逐欄檢查)----
+  function scanPrompt(today) {
+    return `你是家庭物品到期管理的助手。圖片是食品、藥品或日用品的包裝照片。請讀出資訊,只回傳一個 JSON 物件,不要其他文字:
+{"name": 品名(繁體中文,最多 20 字,不含品牌廣告詞), "category": 從 ${CATEGORIES.join('、')} 擇一, "location": 建議存放位置,從 ${LOCATIONS.map(l => l.name).join('、')} 擇一, "expiry": 包裝上印的有效日期/保存期限,格式 YYYY-MM-DD,看不到就填 null, "mfg": 製造日期 YYYY-MM-DD 或 null, "quantity": 圖中同樣的商品數量(整數,預設 1)}
+今天是 ${today}。民國年請換算成西元;只有年月時取該月最後一天。看不清楚的欄位填 null,不要猜測日期。`;
+  }
+  function parseScan(raw, today) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 40) : '';
+    if (!name) return null;
+    const category = CATEGORIES.includes(raw.category) ? raw.category : '其他';
+    const loc = LOCATIONS.some(l => l.name === raw.location) ? raw.location : '冷藏';
+    const q = Math.round(Number(raw.quantity));
+    const okDay = v => (typeof v === 'string' && parseDay(v) !== null ? v : null);
+    let expiry = okDay(raw.expiry), mfg = okDay(raw.mfg);
+    if (mfg && expiry && mfg > expiry) mfg = null;
+    let estimated = false;
+    if (!expiry) { expiry = suggestExpiry(category, loc, today).date; estimated = true; }
+    const l = LOCATIONS.find(x => x.name === loc);
+    return { name, category, location: loc, quantity: q >= 1 && q <= 99 ? q : 1, expiry, mfg: mfg || '', purchase: today, estimated, readDate: !estimated, tempC: l && l.tempC !== null ? l.tempC : '' };
+  }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -202,7 +224,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, shopToForm, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, shopToForm, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

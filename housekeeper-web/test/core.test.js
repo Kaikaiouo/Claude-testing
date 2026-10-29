@@ -183,3 +183,15 @@ test('備份包含購物清單;舊備份沒有也能匯入', () => {
   assert.deepStrictEqual(r.shopping, [sh]);
   assert.deepStrictEqual(HK.parseBackup('{"app":"housekeeper","items":[]}', T).shopping, []);
 });
+
+test('parseScan:驗證並正規化辨識結果', () => {
+  const T = '2026-10-29';
+  const r = HK.parseScan({ name: ' 鮮奶 ', category: '乳製品', location: '冷藏', expiry: '2026-11-05', mfg: '2026-10-20', quantity: 2 }, T);
+  assert.equal(r.name, '鮮奶'); assert.equal(r.expiry, '2026-11-05'); assert.equal(r.estimated, false); assert.equal(r.quantity, 2); assert.equal(r.tempC, 4);
+  const e = HK.parseScan({ name: '蘋果', category: '亂寫', location: '火星', expiry: '2026-02-31', quantity: 500 }, T);
+  assert.equal(e.category, '其他'); assert.equal(e.location, '冷藏'); assert.equal(e.estimated, true); assert.equal(e.quantity, 1);
+  assert.ok(HK.parseDay(e.expiry) !== null);
+  assert.equal(HK.parseScan({ name: 'x', expiry: '2026-11-01', mfg: '2026-12-01' }, T).mfg, '');
+  assert.equal(HK.parseScan({ name: '' }, T), null); assert.equal(HK.parseScan(null, T), null); assert.equal(HK.parseScan([1], T), null);
+  assert.ok(HK.scanPrompt(T).includes(T));
+});
