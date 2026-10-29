@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>棋類 AI:黑白棋 / 五子棋</title>
+<style>
+  :root { --bg:#1e2227; --panel:#2a3038; --fg:#e8eaed; --accent:#f0b429; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,"Noto Sans TC",sans-serif; background:var(--bg); color:var(--fg); display:flex; flex-direction:column; align-items:center; padding:16px; }
+  h1 { font-size:1.2rem; margin:4px 0 12px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; background:var(--panel); padding:10px 12px; border-radius:10px; margin-bottom:12px; }
+  select,button { background:#3a424d; color:var(--fg); border:1px solid #4a5360; border-radius:6px; padding:6px 10px; font-size:.9rem; cursor:pointer; }
+  button:hover { background:#4a5360; }
+  canvas { max-width:100%; height:auto; border-radius:8px; box-shadow:0 4px 18px #0008; touch-action:manipulation; }
+  #status { margin-top:12px; min-height:1.5em; font-size:1rem; color:var(--accent); text-align:center; }
+  #info { font-size:.85rem; opacity:.75; margin-top:4px; }
+</style>
+</head>
+<body>
+<h1>棋類 AI:黑白棋 / 五子棋</h1>
+<div class="bar">
+  <label>遊戲 <select id="game"><option value="othello">黑白棋</option><option value="gomoku">五子棋</option></select></label>
+  <label>你執 <select id="side"><option value="1">黑(先手)</option><option value="-1">白(後手)</option></select></label>
+  <label>難度 <select id="level"></select></label>
+  <button id="new">新局</button>
+  <button id="undo">悔棋</button>
+</div>
+<canvas id="board" width="560" height="560"></canvas>
+<div id="status"></div>
+<div id="info"></div>
+<script src="src/util.js"></script>
+<script src="src/othello.js"></script>
+<script src="src/gomoku.js"></script>
+<script src="src/search.js"></script>
+<script>
+(function () {
+  const { Othello, BLACK, WHITE, PASS } = BoardAI.othello;
+  const { Gomoku } = BoardAI.gomoku;
+  const { search } = BoardAI.search;
+  const $ = id => document.getElementById(id);
+  const canvas = $('board'), ctx = canvas.getContext('2d'), W = canvas.width;
+  const LEVELS = {
+    othello: [['簡單(深度 2)', 2], ['普通(深度 4)', 4], ['困難(深度 6)', 6], ['大師(深度 8)', 8]],
+    gomoku: [['簡單(深度 1)', 1], ['普通(深度 2)', 2], ['困難(深度 3)', 3], ['大師(深度 4)', 4]],
+  };
+  let game, human = BLACK, depth = 4, thinking = false, lastInfo = '', token = 0;
+
+  function fillLevels() {
+    const sel = $('level'); sel.innerHTML = '';
+    LEVELS[$('game').value].forEach(([label, d], i) => { const o = new Option(label, d); if (i === 1) o.selected = true; sel.add(o); });
+    depth = +sel.value;
+  }
+
+  function newGame() {
+    token++; thinking = false; lastInfo = '';
+    human = +$('side').value; depth = +$('level').value;
+    game = $('game').value === 'othello' ? new Othello() : new Gomoku(15, 10);
+    render(); nextTurn();
+  }
+
+  const lastMove = () => (game.history.length ? game.history[game.history.length - 1].move : -1);
+
+  function render() {
+    ctx.clearRect(0, 0, W, W);
+    if (game instanceof Othello) drawOthello(); else drawGomoku();
+    $('info').textContent = lastInfo;
+  }
+
+  function disc(x, y, r, color) {
+    const g = ctx.createRadialGradient(x - r * .3, y - r * .3, r * .1, x, y, r);
+    g.addColorStop(0, color === BLACK ? '#555' : '#fff'); g.addColorStop(1, color === BLACK ? '#000' : '#cfcfcf');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  }
+
+  function drawOthello() {
+    const s = W / 8;
+    ctx.fillStyle = '#1f7a3f'; ctx.fillRect(0, 0, W, W);
+    ctx.strokeStyle = '#0d4a24'; ctx.lineWidth = 2;
+    for (let i = 0; i <= 8; i++) { ctx.beginPath(); ctx.moveTo(i * s, 0); ctx.lineTo(i * s, W); ctx.moveTo(0, i * s); ctx.lineTo(W, i * s); ctx.stroke(); }
+    const legal = !thinking && game.player === human && !game.isOver() ? game.legalMoves() : [];
+    for (let i = 0; i < 64; i++) {
+      const x = (i % 8 + .5) * s, y = ((i / 8 | 0) + .5) * s, v = game.board[i];
+      if (v) disc(x, y, s * .4, v);
+      else if (legal.includes(i)) { ctx.fillStyle = '#ffffff55'; ctx.beginPath(); ctx.arc(x, y, s * .09, 0, 7); ctx.fill(); }
+    }
+    const lm = lastMove();
+    if (lm >= 0 && lm < 64) { ctx.strokeStyle = '#f0b429'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc((lm % 8 + .5) * s, ((lm / 8 | 0) + .5) * s, s * .44, 0, 7); ctx.stroke(); }
+  }
+
+  function drawGomoku() {
+    const n = game.size, s = W / (n + 1);
+    ctx.fillStyle = '#d9a95b'; ctx.fillRect(0, 0, W, W);
+    ctx.strokeStyle = '#6b4a1b'; ctx.lineWidth = 1;
+    for (let i = 0; i < n; i++) {
+      const p = (i + 1) * s;
+      ctx.beginPath(); ctx.moveTo(s, p); ctx.lineTo(n * s, p); ctx.moveTo(p, s); ctx.lineTo(p, n * s); ctx.stroke();
+    }
+    if (n === 15) for (const [r, c] of [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]]) { ctx.fillStyle = '#6b4a1b'; ctx.beginPath(); ctx.arc((c + 1) * s, (r + 1) * s, 3.5, 0, 7); ctx.fill(); }
+    for (let i = 0; i < n * n; i++) {
+      const v = game.board[i]; if (!v) continue;
+      disc(((i % n) + 1) * s, ((i / n | 0) + 1) * s, s * .44, v);
+    }
+    const lm = lastMove();
+    if (lm >= 0) { ctx.fillStyle = '#e53935'; ctx.beginPath(); ctx.arc((lm % n + 1) * s, ((lm / n | 0) + 1) * s, s * .1, 0, 7); ctx.fill(); }
+  }
+
+  function setStatus(t) { $('status').textContent = t; }
+
+  function describeEnd() {
+    const w = game.winner();
+    if (game instanceof Othello) {
+      const { black, white } = game.counts();
+      return `遊戲結束 ● ${black} : ○ ${white} — ${w === 0 ? '平手' : w === human ? '你贏了!' : 'AI 獲勝'}`;
+    }
+    return `遊戲結束 — ${w === 0 ? '平手' : w === human ? '你贏了!' : 'AI 獲勝'}`;
+  }
+
+  function nextTurn() {
+    if (game.isOver()) { render(); setStatus(describeEnd()); return; }
+    if (game.player === human) {
+      if (game instanceof Othello && game.legalMoves()[0] === PASS) { setStatus('你沒有合法步,自動 PASS'); game.play(PASS); render(); setTimeout(nextTurn, 600); return; }
+      render(); setStatus('輪到你了'); return;
+    }
+    thinking = true; render(); setStatus('AI 思考中…');
+    const my = token;
+    setTimeout(() => {
+      if (my !== token) return;
+      if (game instanceof Othello && game.legalMoves()[0] === PASS) { game.play(PASS); thinking = false; nextTurn(); return; }
+      const t = performance.now(), r = search(game, { depth, timeMs: 4000 });
+      lastInfo = `AI 評分 ${r.score.toFixed(0)}・搜尋深度 ${r.depth}・${r.nodes} 節點・${(performance.now() - t).toFixed(0)} ms`;
+      game.play(r.move); thinking = false; nextTurn();
+    }, 60);
+  }
+
+  canvas.addEventListener('click', e => {
+    if (thinking || game.isOver() || game.player !== human) return;
+    const rect = canvas.getBoundingClientRect(), px = (e.clientX - rect.left) * W / rect.width, py = (e.clientY - rect.top) * W / rect.height;
+    let idx;
+    if (game instanceof Othello) idx = Math.floor(py / (W / 8)) * 8 + Math.floor(px / (W / 8));
+    else { const s = W / (game.size + 1), c = Math.round(px / s) - 1, r = Math.round(py / s) - 1; if (c < 0 || r < 0 || c >= game.size || r >= game.size) return; idx = r * game.size + c; }
+    try { game.play(idx); } catch (err) { setStatus('這裡不能下:' + err.message); return; }
+    lastInfo = ''; render(); nextTurn();
+  });
+
+  $('new').onclick = newGame;
+  $('game').onchange = () => { fillLevels(); newGame(); };
+  $('side').onchange = newGame;
+  $('level').onchange = () => { depth = +$('level').value; };
+  $('undo').onclick = () => {
+    if (thinking) return;
+    // 悔棋:退回到輪到玩家的上一個局面
+    let n = 0;
+    while (game.history.length && n < 20) {
+      game.undo(); n++;
+      if (game.player === human && !(game instanceof Othello && game.legalMoves()[0] === PASS)) break;
+    }
+    lastInfo = ''; render(); nextTurn();
+  };
+  window.__game = () => game; // 測試用
+  fillLevels(); newGame();
+})();
+</script>
+</body>
+</html>
