@@ -150,6 +150,7 @@
   }
   const closeForm = () => { $('formWrap').hidden = true; editing = null; };
   $('fab').onclick = () => openForm(null);
+  $('addWide').onclick = () => openForm(null);
   $('fCancel').onclick = closeForm;
   $('formWrap').addEventListener('click', e => { if (e.target === $('formWrap')) closeForm(); });
   $('fSave').onclick = () => {
