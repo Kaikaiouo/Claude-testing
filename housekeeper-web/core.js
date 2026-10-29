@@ -1,0 +1,145 @@
+// housekeeper 網頁版核心邏輯(無 DOM,可在 Node 測試)。
+// 對應 iOS 版的 Item.swift:類別、位置、剩餘天數、狀態顏色。
+(function () {
+  const CATEGORIES = ['蔬菜', '水果', '肉類', '乳製品', '飲料', '調味料', '藥品', '保養品', '日用品', '其他'];
+  const LOCATIONS = [
+    { name: '冷藏', tempC: 4 }, { name: '冷凍', tempC: -18 }, { name: '常溫', tempC: null },
+    { name: '櫃子', tempC: null }, { name: '藥箱', tempC: null },
+  ];
+
+  // 估算保存天數(包裝沒有標示時的粗略值,使用者可修改):[類別][位置] -> 天數,'*' 為預設
+  const SHELF_DAYS = {
+    蔬菜: { 冷藏: 5, 冷凍: 240, '*': 3 }, 水果: { 冷藏: 7, 冷凍: 240, '*': 4 },
+    肉類: { 冷藏: 3, 冷凍: 90, '*': 1 }, 乳製品: { 冷藏: 7, 冷凍: 60, '*': 2 },
+    飲料: { 冷藏: 14, '*': 180 }, 調味料: { 冷藏: 180, '*': 365 },
+    藥品: { '*': 365 }, 保養品: { '*': 365 }, 日用品: { '*': 365 }, 其他: { 冷凍: 90, '*': 30 },
+  };
+
+  const pad = n => String(n).padStart(2, '0');
+  const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // 本地日期
+  const todayStr = (now = new Date()) => fmtDate(now);
+
+  function parseDay(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    if (!m) return null;
+    const t = Date.UTC(+m[1], +m[2] - 1, +m[3]), d = new Date(t);
+    return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3] ? t : null;
+  }
+  function addDays(s, n) {
+    const t = parseDay(s); if (t === null) return null;
+    const d = new Date(t + n * 86400000);
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  }
+  function addMonths(s, n) {
+    const t = parseDay(s); if (t === null) return null;
+    const d = new Date(t), y = d.getUTCFullYear(), mo = d.getUTCMonth() + n, day = d.getUTCDate();
+    const lastDay = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    const r = new Date(Date.UTC(y, mo, Math.min(day, lastDay)));
+    return `${r.getUTCFullYear()}-${pad(r.getUTCMonth() + 1)}-${pad(r.getUTCDate())}`;
+  }
+
+  // 距離到期還有幾天(今天到期 = 0,已過期為負)
+  function daysLeft(expiry, today) {
+    const a = parseDay(expiry), b = parseDay(today);
+    return a === null || b === null ? null : Math.round((a - b) / 86400000);
+  }
+
+  // 狀態分級:expired 已過期、urgent 3 天內(含今天)、soon 7 天內、ok 安全
+  function status(days) {
+    if (days === null) return 'ok';
+    return days < 0 ? 'expired' : days <= 3 ? 'urgent' : days <= 7 ? 'soon' : 'ok';
+  }
+
+  function suggestExpiry(category, location, purchase) {
+    const t = SHELF_DAYS[category] || SHELF_DAYS['其他'];
+    const days = t[location] !== undefined ? t[location] : t['*'];
+    return { date: addDays(purchase, days), days };
+  }
+
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  // 驗證並正規化表單資料;回傳 { item, errors }
+  function makeItem(f, today, id) {
+    const errors = [];
+    const name = String(f.name || '').trim();
+    if (!name) errors.push('請輸入物品名稱');
+    if (name.length > 40) errors.push('名稱最多 40 字');
+    const qty = Math.round(Number(f.quantity));
+    if (!(qty >= 1 && qty <= 99)) errors.push('數量需介於 1 到 99');
+    if (parseDay(f.expiry) === null) errors.push('請填寫有效的到期日');
+    const purchase = f.purchase || today;
+    if (parseDay(purchase) === null) errors.push('購買日格式錯誤');
+    if (f.mfg && parseDay(f.mfg) === null) errors.push('製造日期格式錯誤');
+    if (f.mfg && parseDay(f.expiry) !== null && parseDay(f.mfg) > parseDay(f.expiry)) errors.push('製造日期不能晚於到期日');
+    let temp = f.tempC === '' || f.tempC === null || f.tempC === undefined ? null : Number(f.tempC);
+    if (temp !== null && !(temp >= -50 && temp <= 60)) errors.push('存放溫度需介於 -50 到 60 °C');
+    if (errors.length) return { item: null, errors };
+    return {
+      errors, item: {
+        id: id || newId(), name, category: CATEGORIES.includes(f.category) ? f.category : '其他',
+        location: LOCATIONS.some(l => l.name === f.location) ? f.location : '冷藏', quantity: qty,
+        mfg: f.mfg || null, expiry: f.expiry, estimated: !!f.estimated, purchase, tempC: temp,
+        notes: String(f.notes || '').slice(0, 300), done: false, doneAt: null, createdAt: Date.now(),
+      },
+    };
+  }
+
+  const sortByExpiry = items => [...items].sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : a.name.localeCompare(b.name)));
+
+  function filterItems(items, { location = '', query = '' } = {}) {
+    const q = query.trim().toLowerCase();
+    return items.filter(i => (!location || i.location === location) && (!q || i.name.toLowerCase().includes(q) || i.category.includes(q) || (i.notes || '').toLowerCase().includes(q)));
+  }
+
+  function summarize(items, today) {
+    const s = { expired: 0, urgent: 0, soon: 0, ok: 0 };
+    for (const i of items) if (!i.done) s[status(daysLeft(i.expiry, today))]++;
+    return s;
+  }
+
+  // 兩邊狀態合併:updatedAt 較新者勝(用於本機與雲端同步)
+  function pickNewer(local, remote) {
+    if (!remote) return local;
+    if (!local) return remote;
+    return (remote.updatedAt || 0) > (local.updatedAt || 0) ? remote : local;
+  }
+
+  // ---- iCalendar 匯出:每個未處理物品一個全天事件 + 提前提醒 ----
+  const icsEscape = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  function fold(line) {
+    const enc = new TextEncoder(); let out = '', cur = '', bytes = 0, first = true;
+    for (const ch of line) {
+      const n = enc.encode(ch).length, limit = first ? 73 : 72;
+      if (bytes + n > limit) { out += cur + '\r\n '; cur = ''; bytes = 0; first = false; }
+      cur += ch; bytes += n;
+    }
+    return out + cur;
+  }
+  function toICS(items, { reminderDays = 3, reminderHour = 9, now = new Date() } = {}) {
+    const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
+    const minutes = reminderDays * 1440 - reminderHour * 60; // 事件從 00:00 開始,提醒落在「前 n 天的 H 點」
+    const trigger = minutes > 0 ? `-PT${minutes}M` : `PT${-minutes}M`;
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//housekeeper//TW//', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+    for (const i of items) {
+      if (i.done || parseDay(i.expiry) === null) continue;
+      const d = i.expiry.replace(/-/g, ''), e = addDays(i.expiry, 1).replace(/-/g, '');
+      lines.push('BEGIN:VEVENT', `UID:${i.id}@housekeeper`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${e}`,
+        `SUMMARY:${icsEscape(`${i.name} 到期`)}`,
+        `DESCRIPTION:${icsEscape(`${i.category}・${i.location}・數量 ${i.quantity}${i.notes ? '\n' + i.notes : ''}`)}`,
+        'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(`${i.name} 即將到期`)}`, `TRIGGER:${trigger}`, 'END:VALARM', 'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+    return lines.map(fold).join('\r\n') + '\r\n';
+  }
+
+  // 範例資料(使用者按「載入範例」才會加入)
+  function sampleItems(today) {
+    const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
+    return [mk('鮮奶', '乳製品', '冷藏', 2, 2), mk('雞胸肉', '肉類', '冷凍', 3, 45, true), mk('青江菜', '蔬菜', '冷藏', 1, -1, true),
+      mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
+  }
+
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, sampleItems, newId };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else window.HK = api;
+})();
