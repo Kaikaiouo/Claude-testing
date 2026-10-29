@@ -214,12 +214,14 @@
     LEVELS[$('game').value].forEach(([label, d], i) => { const o = new Option(label, d); if (i === 1) o.selected = true; sel.add(o); });
   }
 
-  function newGame() {
-    token++; thinking = false; lastInfo = '';
+  let recorded = false, undos = 0;
+  function newGame(restore) {
+    token++; thinking = false; lastInfo = ''; recorded = false; undos = restore ? restore.undos || 0 : 0;
     kind = $('game').value; human = +$('side').value; depth = +$('level').value;
     game = kind === 'othello' ? new Othello() : kind === 'gomoku' ? new Gomoku(15, 10) : new Score4();
+    if (restore) for (const m of restore.moves) game.play(m);
     clearWorld(); cfg().build(); cam.theta = human === BLACK ? 0 : Math.PI; cam.phi = 0.95; placeCamera();
-    sync(false); setStatus(''); nextTurn();
+    sync(false); setStatus(restore ? '已接續上次未完成的對局' : ''); savePrefs(); persist(); nextTurn();
   }
 
   function setStatus(t) { $('status').textContent = t; $('info').textContent = lastInfo; }
@@ -232,7 +234,7 @@
 
   function nextTurn() {
     updateHints();
-    if (game.isOver()) { setStatus(endText()); showWin(); return; }
+    if (game.isOver()) { setStatus(endText()); showWin(); recordResult(); return; }
     if (kind === 'othello' && game.legalMoves()[0] === PASS) {
       const mine = game.player === human;
       setStatus(mine ? '你沒有合法步,自動跳過' : 'AI 沒有合法步,跳過');
@@ -245,7 +247,7 @@
       if (my !== token) return;
       const t = performance.now(), r = search(game, { depth, timeMs: 4000 });
       lastInfo = `AI 評分 ${r.score.toFixed(0)}・深度 ${r.depth}・${r.nodes} 節點・${(performance.now() - t).toFixed(0)} ms`;
-      game.play(r.move); thinking = false; sync(true);
+      game.play(r.move); thinking = false; sync(true); persist();
       setTimeout(() => { if (my === token) nextTurn(); }, 450);
     }, 450);
   }
@@ -253,7 +255,7 @@
   function humanPlay(move) {
     if (thinking || game.isOver() || game.player !== human) return;
     try { game.play(move); } catch (e) { setStatus('這裡不能下:' + e.message); return; }
-    lastInfo = ''; sync(true); removeGhost();
+    lastInfo = ''; sync(true); removeGhost(); persist();
     const my = token; setTimeout(() => { if (my === token) nextTurn(); }, 450);
   }
 
@@ -307,16 +309,17 @@
   cv.addEventListener('wheel', e => { e.preventDefault(); cam.radius *= 1 + Math.sign(e.deltaY) * 0.08; placeCamera(); }, { passive: false });
 
   // ---------- 控制列 ----------
-  $('new').onclick = newGame;
-  $('game').onchange = () => { fillLevels(); newGame(); };
-  $('side').onchange = newGame;
-  $('level').onchange = () => { depth = +$('level').value; };
+  $('new').onclick = () => newGame();
+  $('game').onchange = () => { fillLevels(); newGame(); syncBoardSelectors(); };
+  $('side').onchange = () => newGame();
+  $('level').onchange = () => { depth = +$('level').value; newGame(); syncBoardSelectors(); };
   $('view').onclick = () => { cam.phi = cam.phi > 0.5 ? 0.15 : 0.95; placeCamera(); };
   $('undo').onclick = () => {
-    if (thinking) return;
+    if (thinking || game.isOver() || !game.history.length) return;
+    undos++;
     let n = 0;
     while (game.history.length && n < 20) { game.undo(); n++; if (game.player === human && !(kind === 'othello' && game.legalMoves()[0] === PASS)) break; }
-    token++; lastInfo = ''; sync(false); removeGhost(); nextTurn();
+    token++; lastInfo = ''; sync(false); removeGhost(); persist(); nextTurn();
   };
 
   // ---------- 主迴圈 ----------
@@ -327,6 +330,114 @@
     renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
-  window.__app = { game: () => game, kind: () => kind, humanPlay, pick, camera };
-  resize(); fillLevels(); $('game').value = 'score4'; fillLevels(); newGame(); requestAnimationFrame(frame);
+  window.__app = { game: () => game, rows: () => allRows(), kind: () => kind, humanPlay, pick, camera };
+  // ---------- 記憶:玩家名稱、偏好、未完成對局、成績 ----------
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem('board3d.' + k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem('board3d.' + k, JSON.stringify(v)); } catch (e) { /* 隱私模式等情況:略過 */ }; },
+    del(k) { try { localStorage.removeItem('board3d.' + k); } catch (e) { /* 略過 */ } },
+  };
+  let playerName = store.get('name') || '';
+  const GAME_NAME = { score4: '立體四連', othello: '黑白棋', gomoku: '五子棋' };
+  const levelIdx = () => $('level').selectedIndex;
+
+  function savePrefs() { store.set('prefs', { game: $('game').value, side: $('side').value, lvl: levelIdx() }); }
+  function persist() {
+    if (!game) return;
+    if (game.isOver()) { store.del('save'); return; }
+    store.set('save', { kind, human, lvl: levelIdx(), moves: game.history.map(e => e.move), undos });
+  }
+
+  // 成績:本機一份(離線也不會掉),有 db 時另存共用排行榜
+  let db = null, uid = null, cloudRows = null;
+  const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  function recordResult() {
+    if (recorded) return; recorded = true;
+    store.del('save');
+    if (!playerName) return;
+    const w = game.winner();
+    const row = { rid: rid(), name: playerName, game: kind, lvl: levelIdx(), side: human, result: w === 0 ? 'draw' : w === human ? 'win' : 'loss', plies: game.history.length, undos, ts: Date.now() };
+    const rows = store.get('results') || []; rows.push(row); store.set('results', rows.slice(-500));
+    if (db && uid) db.collection('results').add(Object.assign({ uid }, row)).catch(() => {});
+    renderBoard();
+  }
+
+  function allRows() {
+    const m = new Map();
+    for (const r of store.get('results') || []) m.set(r.rid, r);
+    for (const r of cloudRows || []) if (r && r.rid) m.set(r.rid, r);
+    return [...m.values()];
+  }
+
+  function renderBoard() {
+    const g = $('lbGame').value, lvl = +$('lbLevel').value, stats = new Map();
+    for (const r of allRows()) {
+      if (r.game !== g || r.lvl !== lvl || r.undos > 0) continue; // 用過悔棋的局不列入排名
+      const key = String(r.name).toLowerCase();
+      const s = stats.get(key) || { name: r.name, win: 0, draw: 0, loss: 0, best: null, last: 0 };
+      s[r.result]++; s.last = Math.max(s.last, r.ts);
+      if (r.result === 'win' && (s.best === null || r.plies < s.best)) s.best = r.plies;
+      stats.set(key, s);
+    }
+    const list = [...stats.values()].map(s => Object.assign(s, { total: s.win + s.draw + s.loss, pts: s.win * 3 + s.draw }))
+      .sort((a, b) => b.pts - a.pts || b.win / b.total - a.win / a.total || a.name.localeCompare(b.name));
+    const tb = $('lbBody'); tb.textContent = '';
+    if (!list.length) { const tr = tb.insertRow(), td = tr.insertCell(); td.colSpan = 8; td.className = 'empty'; td.textContent = '這個難度還沒有人完成對局。打贏 AI 就會上榜!'; return; }
+    list.forEach((s, i) => {
+      const tr = tb.insertRow(); if (playerName && s.name.toLowerCase() === playerName.toLowerCase()) tr.className = 'me';
+      [i + 1, s.name, s.win, s.draw, s.loss, Math.round((s.win / s.total) * 100) + '%', s.pts, s.best === null ? '—' : s.best + ' 手'].forEach((v, j) => { const td = tr.insertCell(); td.textContent = v; if (j === 1) td.className = 'nm'; });
+    });
+  }
+
+  function fillBoardLevels() {
+    const sel = $('lbLevel'); sel.innerHTML = '';
+    LEVELS[$('lbGame').value].forEach(([label], i) => sel.add(new Option(label, i)));
+  }
+  function syncBoardSelectors() { $('lbGame').value = $('game').value; fillBoardLevels(); $('lbLevel').value = levelIdx(); renderBoard(); }
+  $('lbGame').onchange = () => { fillBoardLevels(); $('lbLevel').value = 1; renderBoard(); };
+  $('lbLevel').onchange = renderBoard;
+
+  // ---------- 玩家名稱視窗 ----------
+  function showNameBox(required) {
+    $('nameBox').hidden = false; $('nameCancel').hidden = required; $('nameIn').value = playerName; setTimeout(() => $('nameIn').focus(), 50);
+  }
+  function submitName() {
+    const v = $('nameIn').value.trim().slice(0, 16);
+    if (!v) { $('nameErr').textContent = '請輸入名稱(最多 16 字)'; return; }
+    $('nameErr').textContent = ''; playerName = v; store.set('name', v);
+    $('nameBox').hidden = true; $('who').textContent = '玩家:' + v; renderBoard();
+  }
+  $('nameOk').onclick = submitName;
+  $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
+  $('nameCancel').onclick = () => { $('nameBox').hidden = true; };
+  $('who').onclick = () => showNameBox(false);
+
+  // ---------- 雲端排行榜(共用資料庫,不可用時只用本機) ----------
+  async function initCloud() {
+    try {
+      if (!(window.claude && window.claude.use)) return;
+      db = await window.claude.use('db');
+      const user = await window.claude.use('user');
+      uid = user && user.id ? await user.id() : null;
+      if (db) db.collection('results').orderBy('ts', 'desc').limit(500).onSnapshot(snap => { cloudRows = snap.docs.map(d => d.data()); renderBoard(); }, () => { cloudRows = null; });
+    } catch (e) { db = null; }
+  }
+
+  // ---------- 啟動 ----------
+  resize();
+  const prefs = store.get('prefs') || {}, save = store.get('save');
+  $('game').value = prefs.game || 'score4'; fillLevels();
+  if (prefs.side) $('side').value = prefs.side;
+  $('level').selectedIndex = prefs.lvl >= 0 ? prefs.lvl : 1;
+  $('who').textContent = playerName ? '玩家:' + playerName : '設定名稱';
+  fillBoardLevels();
+  let restore = null;
+  if (save && Array.isArray(save.moves) && save.moves.length) {
+    $('game').value = save.kind; fillLevels(); $('side').value = String(save.human); $('level').selectedIndex = save.lvl; restore = save;
+  }
+  try { newGame(restore); } catch (e) { store.del('save'); newGame(); }
+  syncBoardSelectors();
+  if (!playerName) showNameBox(true);
+  initCloud();
+  requestAnimationFrame(frame);
 })();
