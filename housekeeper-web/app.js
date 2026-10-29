@@ -68,12 +68,12 @@
     li.append(info);
     if (mode === 'done') {
       const acts = el('div', 'acts'), undo = el('button', '', '還原'), del = el('button', 'danger', '刪除');
-      undo.onclick = () => { item.done = false; item.doneAt = null; commit(); };
+      undo.onclick = () => { item.done = false; item.doneAt = null; delete item.outcome; commit(); };
       del.onclick = () => { if (del.dataset.arm) { state.items = state.items.filter(i => i.id !== item.id); commit(); } else { del.dataset.arm = '1'; del.textContent = '確定?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; }, 2500); } };
       acts.append(undo, del); li.append(acts);
     } else {
       const d = el('button', 'done-btn', '吃完'); d.title = '標記為已吃完/已處理';
-      d.onclick = () => { item.done = true; item.doneAt = Date.now(); commit(); };
+      d.onclick = () => { item.done = true; item.doneAt = Date.now(); item.outcome = HK.daysLeft(item.expiry, today()) < 0 ? 'wasted' : 'used'; commit(); };
       li.append(d);
     }
     return li;
@@ -186,7 +186,46 @@
     } catch (e) { msg.textContent = '沒有儲存成功(可能被取消了)。'; }
   };
 
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('setWrap').hidden = true; } });
+  // 備份/還原
+  async function saveFile(name, text, type) {
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if (dl) return dl.save({ filename: name, data: new Blob([text], { type }) });
+    const a = el('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.append(a); a.click(); a.remove();
+  }
+  $('sBackup').onclick = async () => {
+    try { await saveFile('housekeeper-backup-' + today() + '.json', HK.exportBackup(state), 'application/json'); $('backupMsg').textContent = `已備份 ${state.items.length} 項物品。`; }
+    catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
+  };
+  $('sRestore').onclick = () => $('sFile').click();
+  $('sFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const msg = $('backupMsg');
+    if (f.size > 5e6) { msg.textContent = '檔案太大,不像是備份檔。'; return; }
+    const r = HK.parseBackup(await f.text(), today());
+    if (!r.ok) { msg.textContent = r.error + '。'; return; }
+    state.items = HK.mergeItems(state.items, r.items); state.settings = Object.assign(state.settings, r.settings); commit();
+    msg.textContent = `已還原 ${r.items.length} 項物品` + (r.skipped ? `,略過 ${r.skipped} 筆無效資料。` : '。');
+  };
+
+  // 統計
+  function showStats() {
+    const s = HK.stats(state.items, today()), body = $('statBody'); body.textContent = '';
+    if (!state.items.length) { body.append(el('p', 'note', '還沒有資料。新增物品、處理幾項之後,這裡會顯示浪費率與類別分佈。')); }
+    else {
+      const big = el('div', 'big');
+      for (const [v, l] of [[String(s.activeCount), '待處理'], [String(s.doneCount), '已處理'], [s.wasteRate === null ? '—' : Math.round(s.wasteRate * 100) + '%', '浪費率']]) { const d = el('div'); d.append(el('b', '', v), el('span', '', l)); big.append(d); }
+      body.append(big);
+      body.append(el('p', 'note', s.doneCount ? `已處理的 ${s.doneCount} 項中,${s.used} 項在到期前處理、${s.wasted} 項是過期後才處理。` : '浪費率 = 過期後才處理的比例,處理過物品後才會出現。'));
+      body.append(el('h2', '', '待處理的類別'));
+      if (s.categories.length) { const bars = el('div', 'bars'), max = s.categories[0].count; for (const c of s.categories) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / max * 100) + '%'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); bars.append(r); } body.append(bars); }
+      else body.append(el('p', 'note', '目前沒有待處理的物品。'));
+    }
+    $('statWrap').hidden = false;
+  }
+  $('btnStats').onclick = showStats; $('statClose').onclick = () => { $('statWrap').hidden = true; };
+  $('statWrap').addEventListener('click', e => { if (e.target === $('statWrap')) $('statWrap').hidden = true; });
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('setWrap').hidden = true; $('statWrap').hidden = true; } });
   $('search').addEventListener('input', e => { query = e.target.value; render(); });
   window.__hk = { state: () => state, commit };
   render(); initCloud();

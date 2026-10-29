@@ -117,7 +117,7 @@ test('toICS:格式、全天事件、跳脫字元、略過已處理項目', () =>
   assert.ok(ics.includes('TRIGGER:-PT3780M')); // 3 天 − 9 小時 = 63 小時
   assert.ok(!ics.includes('吃完了'));
   const unfolded = ics.replace(/\r\n /g, '');
-  assert.ok(unfolded.includes('SUMMARY:牛奶\\, 低脂\;特價 到期'));
+  assert.ok(unfolded.includes('SUMMARY:牛奶\\, 低脂\\;特價 到期'));
   assert.ok(unfolded.includes('\\n第二行'));
 });
 
@@ -134,4 +134,30 @@ test('sampleItems 都是有效資料,且包含各種狀態', () => {
   assert.ok(items.length >= 5 && items.every(Boolean));
   const kinds = new Set(items.map(i => HK.status(HK.daysLeft(i.expiry, T))));
   assert.deepStrictEqual([...kinds].sort(), ['expired', 'ok', 'soon', 'urgent'].sort());
+});
+
+test('stats:浪費率與類別分佈', () => {
+  const mk = (n, cat, o) => Object.assign(HK.makeItem(form({ name: n, category: cat }), T, n).item, o);
+  const items = [mk('a', '蔬菜', {}), mk('b', '蔬菜', { quantity: 2 }), mk('c', '肉類', {}), mk('d', '乳製品', { done: true, outcome: 'wasted' }), mk('e', '乳製品', { done: true, outcome: 'used' }), mk('f', '乳製品', { done: true })];
+  const s = HK.stats(items, T);
+  assert.strictEqual(s.activeCount, 3); assert.strictEqual(s.doneCount, 3); assert.strictEqual(s.wasted, 1); assert.strictEqual(s.used, 2);
+  assert.ok(Math.abs(s.wasteRate - 1 / 3) < 1e-9);
+  assert.deepStrictEqual(s.categories[0], { name: '蔬菜', count: 3 });
+  assert.strictEqual(HK.stats([], T).wasteRate, null);
+});
+
+test('備份:匯出再匯入內容一致;壞資料略過;非備份檔回報錯誤', () => {
+  const a = HK.makeItem(form({ name: '牛奶' }), T, 'x1').item, b = Object.assign(HK.makeItem(form({ name: '雞蛋' }), T, 'x2').item, { done: true, doneAt: 5, outcome: 'wasted' });
+  const st = { items: [a, b], settings: { reminderDays: 5, reminderHour: 8 } };
+  const r = HK.parseBackup(HK.exportBackup(st), T);
+  assert.ok(r.ok); assert.strictEqual(r.skipped, 0); assert.strictEqual(r.items.length, 2);
+  assert.deepStrictEqual(r.items[0], a); assert.deepStrictEqual(r.items[1], b); assert.deepStrictEqual(r.settings, { reminderDays: 5, reminderHour: 8 });
+  const bad = JSON.stringify({ app: 'housekeeper', items: [a, { name: '' }, null, 3] });
+  const r2 = HK.parseBackup(bad, T); assert.strictEqual(r2.items.length, 1); assert.strictEqual(r2.skipped, 3);
+  assert.strictEqual(HK.parseBackup('nope', T).ok, false); assert.strictEqual(HK.parseBackup('{"items":[]}', T).ok, false);
+});
+
+test('mergeItems:同 id 以匯入為準', () => {
+  const a = { id: '1', name: 'old' }, b = { id: '2', name: 'k' }, a2 = { id: '1', name: 'new' };
+  const m = HK.mergeItems([a, b], [a2]); assert.strictEqual(m.length, 2); assert.strictEqual(m.find(i => i.id === '1').name, 'new');
 });

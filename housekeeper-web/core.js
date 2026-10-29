@@ -105,7 +105,7 @@
   }
 
   // ---- iCalendar 匯出:每個未處理物品一個全天事件 + 提前提醒 ----
-  const icsEscape = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+  const icsEscape = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   function fold(line) {
     const enc = new TextEncoder(); let out = '', cur = '', bytes = 0, first = true;
     for (const ch of line) {
@@ -132,6 +132,44 @@
     return lines.map(fold).join('\r\n') + '\r\n';
   }
 
+  // ---- 統計:處理結果以「處理當下是否已過期」判定(過期才吃完/丟掉 = 浪費)----
+  function stats(items, today) {
+    const active = items.filter(i => !i.done), done = items.filter(i => i.done);
+    const wasted = done.filter(i => i.outcome === 'wasted').length;
+    const byCategory = {};
+    for (const i of active) byCategory[i.category] = (byCategory[i.category] || 0) + (i.quantity || 1);
+    const cats = Object.entries(byCategory).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { activeCount: active.length, doneCount: done.length, wasted, used: done.length - wasted,
+      wasteRate: done.length ? wasted / done.length : null, categories: cats,
+      expiredNow: active.filter(i => daysLeft(i.expiry, today) < 0).length };
+  }
+
+  // ---- JSON 備份:匯出/匯入,匯入時逐筆驗證,壞資料略過並回報 ----
+  function exportBackup(state, now = Date.now()) {
+    return JSON.stringify({ app: 'housekeeper', version: 1, exportedAt: now, settings: state.settings, items: state.items }, null, 2);
+  }
+  function parseBackup(text, today) {
+    let data; try { data = JSON.parse(text); } catch (e) { return { ok: false, error: '檔案不是有效的 JSON', items: [], skipped: 0 }; }
+    if (!data || data.app !== 'housekeeper' || !Array.isArray(data.items)) return { ok: false, error: '這不是 housekeeper 的備份檔', items: [], skipped: 0 };
+    const items = []; let skipped = 0;
+    for (const raw of data.items) {
+      const r = raw && typeof raw === 'object' ? makeItem(raw, today, typeof raw.id === 'string' && raw.id ? raw.id.slice(0, 40) : undefined) : { item: null };
+      if (!r.item) { skipped++; continue; }
+      r.item.done = !!raw.done; r.item.doneAt = raw.done && Number.isFinite(raw.doneAt) ? raw.doneAt : null;
+      r.item.createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : r.item.createdAt;
+      if (raw.done && (raw.outcome === 'wasted' || raw.outcome === 'used')) r.item.outcome = raw.outcome;
+      items.push(r.item);
+    }
+    const s = data.settings || {}, d = Math.round(Number(s.reminderDays)), h = Math.round(Number(s.reminderHour));
+    return { ok: true, items, skipped, settings: { reminderDays: d >= 0 && d <= 60 ? d : 3, reminderHour: h >= 0 && h <= 23 ? h : 9 } };
+  }
+  // 匯入合併:同 id 以匯入檔為準,其餘保留
+  function mergeItems(current, incoming) {
+    const map = new Map(current.map(i => [i.id, i]));
+    for (const i of incoming) map.set(i.id, i);
+    return [...map.values()];
+  }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -139,7 +177,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
