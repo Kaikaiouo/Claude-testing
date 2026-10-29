@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>立體棋盤</title>
+<style>
+  :root { --bg:#eef0ec; --panel:#dde2db; --fg:#1d2420; --accent:#a35d00; --ctl:#fff; --ctl-b:#b3bdb3; --stage:#cfd8cf; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#171b20; --panel:#232a31; --fg:#e8eaed; --accent:#f0b429; --ctl:#333c46; --ctl-b:#47525f; --stage:#10141a; color-scheme:dark; } }
+  :root[data-theme="dark"] { --bg:#171b20; --panel:#232a31; --fg:#e8eaed; --accent:#f0b429; --ctl:#333c46; --ctl-b:#47525f; --stage:#10141a; color-scheme:dark; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,"Noto Sans TC",sans-serif; display:flex; flex-direction:column; align-items:center; padding-block:16px; padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font-size:1.2rem; margin:4px 0 12px; text-wrap:balance; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; background:var(--panel); padding:10px 12px; border-radius:10px; margin-bottom:12px; }
+  select,button { background:var(--ctl); color:var(--fg); border:1px solid var(--ctl-b); border-radius:6px; padding:6px 10px; font-size:.9rem; cursor:pointer; }
+  #stage { width:100%; max-width:920px; background:var(--stage); border-radius:10px; overflow:hidden; line-height:0; }
+  #stage canvas { width:100%; display:block; cursor:grab; }
+  #status { margin-top:12px; min-height:1.5em; font-size:1rem; color:var(--accent); text-align:center; font-weight:600; }
+  #info { font-size:.85rem; opacity:.75; margin-top:4px; text-align:center; min-height:1.2em; }
+  .tip { font-size:.8rem; opacity:.65; margin-top:6px; text-align:center; }
+</style>
+</head>
+<body>
+<h1>立體棋盤</h1>
+<div class="bar">
+  <label>遊戲 <select id="game"><option value="score4">立體四連 4×4×4</option><option value="othello">黑白棋</option><option value="gomoku">五子棋</option></select></label>
+  <label>你執 <select id="side"><option value="1">先手</option><option value="-1">後手</option></select></label>
+  <label>難度 <select id="level"></select></label>
+  <button id="new">新局</button>
+  <button id="undo">悔棋</button>
+  <button id="view">俯視 / 斜視</button>
+</div>
+<div id="stage"></div>
+<div id="status"></div>
+<div id="info"></div>
+<div class="tip">拖曳旋轉視角・滾輪或雙指縮放・點擊落子</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="src/util.js"></script>
+<script src="src/othello.js"></script>
+<script src="src/gomoku.js"></script>
+<script src="src/score4.js"></script>
+<script src="src/search.js"></script>
+<script src="app3d.js"></script>
+</body>
+</html>
