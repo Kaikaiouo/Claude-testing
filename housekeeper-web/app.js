@@ -135,7 +135,11 @@
     state.shopping = r.list; commit(); return r;
   }
   function offerRestock(item) {
+    const box = $('snack');
     snack(`已處理「${item.name}」`, '加入購物清單', () => { const r = addToShopping({ name: item.name, category: item.category, location: item.location, quantity: item.quantity }); if (r) snack(r.merged ? `購物清單裡的「${item.name}」數量增加了` : `已加入購物清單:${item.name}`); });
+    const u = el('button', 'ghost', '復原'); u.type = 'button';
+    u.onclick = () => { box.hidden = true; item.done = false; item.doneAt = null; delete item.outcome; commit(); };
+    box.append(u);
   }
   function showShop() {
     $('snack').hidden = true;
@@ -143,8 +147,10 @@
     const list = HK.sortShopping(state.shopping);
     if (!list.length) body.append(el('p', 'note', '清單是空的。吃完東西時按「加入購物清單」,或在下面直接輸入要買的東西。'));
     else {
+      for (const g of HK.groupShopping(state.shopping)) {
+      body.append(el('h3', 'shopgrp', `${g.category}(${g.pending ? g.pending + ' 待買' : '都買好了'})`));
       const ul = el('ul', 'list shoplist');
-      for (const x of list) {
+      for (const x of g.items) {
         const li = el('li', 'row shoprow' + (x.bought ? ' bought' : '')), lab = el('label', 'shopname'), cb = el('input'); cb.type = 'checkbox'; cb.checked = x.bought;
         cb.setAttribute('aria-label', `買好了:${x.name}`);
         cb.onchange = () => { x.bought = cb.checked; commit(); showShop(); };
@@ -160,6 +166,7 @@
         acts.append(del); li.append(acts); ul.append(li);
       }
       body.append(ul);
+      }
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { state.shopping = state.shopping.filter(x => !x.bought); commit(); showShop(); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
     $('shopWrap').hidden = false;
@@ -305,6 +312,27 @@
   $('btnStats').onclick = showStats; $('statClose').onclick = () => { $('statWrap').hidden = true; };
   $('statWrap').addEventListener('click', e => { if (e.target === $('statWrap')) $('statWrap').hidden = true; });
 
+  // 對話框焦點管理:開啟時移入、Tab 不跳出、關閉時還原到原本的按鈕
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select,textarea,[tabindex]:not([tabindex="-1"])';
+  const openWrap = () => [...document.querySelectorAll('.sheetwrap')].find(w => !w.hidden);
+  const lastFocus = new Map();
+  for (const w of document.querySelectorAll('.sheetwrap')) {
+    new MutationObserver(() => {
+      if (!w.hidden) {
+        if (!lastFocus.has(w)) lastFocus.set(w, document.activeElement);
+        const sheet = w.querySelector('.sheet'); sheet.setAttribute('tabindex', '-1');
+        setTimeout(() => { if (!w.hidden && !w.contains(document.activeElement)) { const f = [...sheet.querySelectorAll(FOCUSABLE)].filter(x => x.offsetParent !== null)[0]; (f || sheet).focus(); } }, 60);
+      } else { const p = lastFocus.get(w); lastFocus.delete(w); if (p && p.focus && document.contains(p)) p.focus(); }
+    }).observe(w, { attributes: true, attributeFilter: ['hidden'] });
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return; const w = openWrap(); if (!w) return;
+    const f = [...w.querySelectorAll(FOCUSABLE)].filter(x => x.offsetParent !== null); if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (!w.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; } });
   $('search').addEventListener('input', e => { query = e.target.value; render(); });
   window.__hk = { state: () => state, commit };

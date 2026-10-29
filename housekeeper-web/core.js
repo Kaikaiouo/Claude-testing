@@ -162,6 +162,14 @@
   }
   // 未買的在前(新加入的在上),已買的在後
   const sortShopping = list => [...list].sort((a, b) => (a.bought - b.bought) || (b.addedAt - a.addedAt));
+  // 依類別分組(類別順序同 CATEGORIES,未知類別放最後);組內未買在前。全部已買的組排到後面
+  function groupShopping(list) {
+    const map = new Map();
+    for (const x of sortShopping(list)) { const k = CATEGORIES.includes(x.category) ? x.category : '其他'; if (!map.has(k)) map.set(k, []); map.get(k).push(x); }
+    const idx = k => { const i = CATEGORIES.indexOf(k); return i < 0 ? 999 : i; };
+    return [...map.entries()].map(([category, items]) => ({ category, items, pending: items.filter(i => !i.bought).length }))
+      .sort((a, b) => ((a.pending === 0) - (b.pending === 0)) || (idx(a.category) - idx(b.category)));
+  }
   // 買好後轉成物品表單的預填值(到期日用類別估算,標為估算)
   function shopToForm(s, today) {
     const r = suggestExpiry(s.category, s.location, today), l = LOCATIONS.find(x => x.name === s.location);
@@ -224,7 +232,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, shopToForm, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

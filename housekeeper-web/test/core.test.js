@@ -195,3 +195,12 @@ test('parseScan:驗證並正規化辨識結果', () => {
   assert.equal(HK.parseScan({ name: '' }, T), null); assert.equal(HK.parseScan(null, T), null); assert.equal(HK.parseScan([1], T), null);
   assert.ok(HK.scanPrompt(T).includes(T));
 });
+
+test('groupShopping:依類別分組、全買完的組排後面、未知類別歸其他', () => {
+  const mk = (name, category, bought, addedAt) => ({ id: name, name, category, bought, addedAt, quantity: 1 });
+  const g = HK.groupShopping([mk('a', HK.CATEGORIES[1], true, 1), mk('b', HK.CATEGORIES[0], false, 2), mk('c', 'zzz', false, 3), mk('d', HK.CATEGORIES[0], false, 5)]);
+  assert.deepStrictEqual(g.map(x => x.category), [HK.CATEGORIES[0], '其他', HK.CATEGORIES[1]]);
+  assert.deepStrictEqual(g[0].items.map(i => i.name), ['d', 'b']);
+  assert.strictEqual(g[2].pending, 0);
+  assert.deepStrictEqual(HK.groupShopping([]), []);
+});
