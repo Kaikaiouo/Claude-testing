@@ -79,13 +79,20 @@
   .check { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-top:6px; } .check input { width:auto; }
   .errs { color:var(--expired); font-size:.85rem; margin-bottom:8px; }
   .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap; } .btns .grow { margin-right:auto; }
-  .hbtns { display:flex; gap:6px; }
+  .hbtns { display:flex; gap:6px; } .hbtns button { white-space:nowrap; }
+  @media (max-width: 440px) { .hbtns button { padding:8px 9px; font-size:.82rem; } .hbtns { gap:4px; } }
   .bars { display:flex; flex-direction:column; gap:6px; margin:8px 0 14px; }
   .bar { display:grid; grid-template-columns:4.5em 1fr 2em; align-items:center; gap:8px; font-size:.85rem; }
   .bar i { display:block; height:10px; border-radius:6px; background:var(--brand); min-width:4px; } .bar em { font-style:normal; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); }
   .big { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:8px 0 14px; }
   .big div { background:var(--surface); border-radius:12px; padding:10px 6px; text-align:center; box-shadow:var(--shadow); } .big b { display:block; font-family:var(--display); font-size:1.4rem; } .big span { font-size:.72rem; color:var(--muted); }
   .note { font-size:.8rem; color:var(--muted); }
+  .shoprow { padding:8px 10px; } .shopname { flex:1; min-width:0; display:flex; align-items:center; gap:10px; cursor:pointer; min-height:44px; }
+  .shopname input { width:22px; height:22px; flex:none; accent-color:var(--brand); } .shopname .nm { font-weight:500; overflow-wrap:anywhere; }
+  .shoprow.bought .nm { text-decoration:line-through; color:var(--muted); }
+  .shopadd { display:flex; gap:8px; margin-top:12px; } .shopadd input { flex:1; min-width:0; }
+  .snack { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(86px + env(safe-area-inset-bottom, 0px)); z-index:40; background:var(--fg); color:var(--bg); border-radius:12px; padding:8px 8px 8px 14px; display:flex; align-items:center; gap:8px; box-shadow:0 6px 18px #0005; max-width:calc(100vw - 32px); font-size:.9rem; }
+  .snack[hidden] { display:none; } .snack button { color:var(--bg); font-weight:700; border-color:var(--bg); white-space:nowrap; background:transparent; }
 
   /* ---- 響應式:依螢幕寬度調整版型 ---- */
   /* 小手機(≤360px):縮小間距與徽章,摘要改兩欄 */
@@ -126,7 +133,7 @@
 <div class="app">
   <header>
     <div><h1>housekeeper</h1><div class="sync" id="sync">載入中…</div></div>
-    <div class="hbtns"><button id="btnStats">統計</button><button id="btnSettings" aria-label="設定">設定</button></div>
+    <div class="hbtns"><button id="btnShop">購物清單</button><button id="btnStats">統計</button><button id="btnSettings" aria-label="設定">設定</button></div>
   </header>
   <div id="banner"></div>
   <div class="layout">
@@ -167,6 +174,15 @@
   <div class="field"><label for="fNotes">備註</label><textarea id="fNotes" rows="2" maxlength="300"></textarea></div>
   <div class="btns"><button id="fDelete" class="danger grow" hidden>刪除</button><button id="fCancel">取消</button><button id="fSave" class="primary">儲存</button></div>
 </div></div>
+
+<div class="sheetwrap" id="shopWrap" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+  <h2 id="shopTitle">購物清單</h2>
+  <div id="shopBody"></div>
+  <form class="shopadd" id="shopAdd"><input id="shopName" maxlength="40" placeholder="要買什麼?" aria-label="新增購物項目" autocomplete="off"><button class="primary" type="submit">加入</button></form>
+  <div class="btns"><button id="shopClose" class="primary" type="button">關閉</button></div>
+</div></div>
+
+<div class="snack" id="snack" role="status" aria-live="polite" hidden></div>
 
 <div class="sheetwrap" id="statWrap" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="statTitle">
   <h2 id="statTitle">統計</h2>

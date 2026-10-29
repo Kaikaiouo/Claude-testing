@@ -144,9 +144,33 @@
       expiredNow: active.filter(i => daysLeft(i.expiry, today) < 0).length };
   }
 
+  // ---- 購物清單:吃完的物品可加入補貨;未買的同名項目合併數量 ----
+  function makeShopItem(f, id, now = Date.now()) {
+    const name = String(f.name || '').trim().slice(0, 40);
+    if (!name) return null;
+    const qty = Math.round(Number(f.quantity));
+    return { id: id || newId(), name, category: CATEGORIES.includes(f.category) ? f.category : '其他',
+      location: LOCATIONS.some(l => l.name === f.location) ? f.location : '冷藏',
+      quantity: qty >= 1 && qty <= 99 ? qty : 1, bought: !!f.bought, addedAt: Number.isFinite(f.addedAt) ? f.addedAt : now };
+  }
+  // 回傳新陣列;同名(忽略大小寫)且尚未買的項目合併數量(上限 99)
+  function addShopping(list, f, now = Date.now()) {
+    const it = makeShopItem(f, undefined, now); if (!it) return { list, added: null, merged: false };
+    const key = it.name.toLowerCase(), hit = list.find(x => !x.bought && x.name.toLowerCase() === key);
+    if (hit) return { list: list.map(x => (x === hit ? Object.assign({}, x, { quantity: Math.min(99, x.quantity + it.quantity) }) : x)), added: hit, merged: true };
+    return { list: [...list, it], added: it, merged: false };
+  }
+  // 未買的在前(新加入的在上),已買的在後
+  const sortShopping = list => [...list].sort((a, b) => (a.bought - b.bought) || (b.addedAt - a.addedAt));
+  // 買好後轉成物品表單的預填值(到期日用類別估算,標為估算)
+  function shopToForm(s, today) {
+    const r = suggestExpiry(s.category, s.location, today), l = LOCATIONS.find(x => x.name === s.location);
+    return { name: s.name, category: s.category, location: s.location, quantity: s.quantity, purchase: today, expiry: r.date, estimated: true, tempC: l && l.tempC !== null ? l.tempC : '' };
+  }
+
   // ---- JSON 備份:匯出/匯入,匯入時逐筆驗證,壞資料略過並回報 ----
   function exportBackup(state, now = Date.now()) {
-    return JSON.stringify({ app: 'housekeeper', version: 1, exportedAt: now, settings: state.settings, items: state.items }, null, 2);
+    return JSON.stringify({ app: 'housekeeper', version: 1, exportedAt: now, settings: state.settings, items: state.items, shopping: state.shopping || [] }, null, 2);
   }
   function parseBackup(text, today) {
     let data; try { data = JSON.parse(text); } catch (e) { return { ok: false, error: '檔案不是有效的 JSON', items: [], skipped: 0 }; }
@@ -161,7 +185,8 @@
       items.push(r.item);
     }
     const s = data.settings || {}, d = Math.round(Number(s.reminderDays)), h = Math.round(Number(s.reminderHour));
-    return { ok: true, items, skipped, settings: { reminderDays: d >= 0 && d <= 60 ? d : 3, reminderHour: h >= 0 && h <= 23 ? h : 9 } };
+    const shopping = (Array.isArray(data.shopping) ? data.shopping : []).map(x => (x && typeof x === 'object' ? makeShopItem(x, typeof x.id === 'string' && x.id ? x.id.slice(0, 40) : undefined) : null)).filter(Boolean);
+    return { ok: true, items, skipped, shopping, settings: { reminderDays: d >= 0 && d <= 60 ? d : 3, reminderHour: h >= 0 && h <= 23 ? h : 9 } };
   }
   // 匯入合併:同 id 以匯入檔為準,其餘保留
   function mergeItems(current, incoming) {
@@ -177,7 +202,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, shopToForm, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

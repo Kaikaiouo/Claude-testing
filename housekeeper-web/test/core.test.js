@@ -161,3 +161,25 @@ test('mergeItems:同 id 以匯入為準', () => {
   const a = { id: '1', name: 'old' }, b = { id: '2', name: 'k' }, a2 = { id: '1', name: 'new' };
   const m = HK.mergeItems([a, b], [a2]); assert.strictEqual(m.length, 2); assert.strictEqual(m.find(i => i.id === '1').name, 'new');
 });
+
+test('購物清單:新增、同名合併、排序、轉成物品預填', () => {
+  let r = HK.addShopping([], { name: ' 鮮奶 ', category: '乳製品', quantity: 2 }, 100);
+  assert.strictEqual(r.list.length, 1); assert.strictEqual(r.list[0].name, '鮮奶'); assert.strictEqual(r.merged, false);
+  r = HK.addShopping(r.list, { name: '鮮奶', quantity: 3 }, 200);
+  assert.strictEqual(r.list.length, 1); assert.strictEqual(r.list[0].quantity, 5); assert.strictEqual(r.merged, true);
+  assert.strictEqual(HK.addShopping(r.list, { name: '  ' }).added, null);
+  const bought = r.list.map(x => Object.assign({}, x, { bought: true }));
+  r = HK.addShopping(bought, { name: '鮮奶', quantity: 1 }, 300); // 已買的不合併
+  assert.strictEqual(r.list.length, 2);
+  assert.strictEqual(HK.sortShopping(r.list)[0].bought, false);
+  const f = HK.shopToForm(HK.makeShopItem({ name: '雞胸肉', category: '肉類', location: '冷凍', quantity: 2 }), T);
+  assert.strictEqual(f.estimated, true); assert.strictEqual(f.tempC, -18); assert.ok(HK.makeItem(f, T).item);
+  assert.strictEqual(HK.makeShopItem({ name: 'x', quantity: 500 }).quantity, 1);
+});
+
+test('備份包含購物清單;舊備份沒有也能匯入', () => {
+  const sh = HK.makeShopItem({ name: '蛋', quantity: 2, bought: true }, 's1', 9);
+  const r = HK.parseBackup(HK.exportBackup({ items: [], settings: {}, shopping: [sh] }), T);
+  assert.deepStrictEqual(r.shopping, [sh]);
+  assert.deepStrictEqual(HK.parseBackup('{"app":"housekeeper","items":[]}', T).shopping, []);
+});
