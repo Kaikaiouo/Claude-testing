@@ -225,6 +225,13 @@
     return { name, category, location: loc, quantity: q >= 1 && q <= 99 ? q : 1, expiry, mfg: mfg || '', purchase: today, estimated, readDate: !estimated, tempC: l && l.tempC !== null ? l.tempC : '' };
   }
 
+  // 新增時偵測重複:同名(忽略空白與大小寫)、未處理、同位置的物品
+  function findDuplicate(items, name, location) {
+    const k = s => String(s || '').replace(/\s+/g, '').toLowerCase(), n = k(name);
+    if (!n) return null;
+    return (items || []).find(i => !i.done && k(i.name) === n && i.location === location) || null;
+  }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -232,7 +239,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

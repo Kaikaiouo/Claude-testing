@@ -26,6 +26,7 @@
 - 2026-10-29 15:10(UTC;台灣約 23:10):新增購物清單(core.js 的 addShopping/sortShopping/shopToForm、介面面板與提示條、備份/雲端同步含 shopping);窄螢幕標題列按鈕不再折行。20 個測試通過,400/1280 寬度截圖無橫向捲動、無 JS 錯誤。已發布(artifact 版本 4,capabilities 不變)。
 - 2026-10-30 約 01:00(台灣時間):新增拍照辨識(core.js 的 scanPrompt/parseScan + 測試、表單內辨識按鈕,無 sample 能力時自動隱藏;看不到日期時改用類別估算並標示估算)。21 個測試通過,400/1280 寬度(以 mock sample 驗證)無橫向捲動、無 JS 錯誤。已發布(artifact 版本 5),capabilities 現為 db、user、downloads、sample{images:true}。
 - 2026-10-29 約 22:15(UTC;台灣 10-30 06:15 左右):購物清單依類別分組(core.js 的 groupShopping + 測試)、所有對話框的焦點管理(開啟移入、Tab 不跳出、關閉還原焦點)、「吃完」提示條新增「復原」鈕。22 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(artifact 版本 6,capabilities 沿用不變)。
+- 2026-10-29 約 16:10(UTC;台灣 10-30 00:10):新增重複偵測(core.js 的 findDuplicate + 測試;新增同名同位置未處理物品時,第一次儲存先提醒、再按一次才存)、辨識前顯示所選照片縮圖。23 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(artifact 版本 7,capabilities 沿用)。
 
 ## 給下次的筆記
 - 焦點管理用 MutationObserver 監看 .sheetwrap 的 hidden,新增對話框只要用 .sheetwrap 結構就自動套用。發布時若被拒絕說未讀過線上版本,先 read 後原樣再發一次即可。

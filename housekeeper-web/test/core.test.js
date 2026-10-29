@@ -204,3 +204,11 @@ test('groupShopping:依類別分組、全買完的組排後面、未知類別歸
   assert.strictEqual(g[2].pending, 0);
   assert.deepStrictEqual(HK.groupShopping([]), []);
 });
+
+test('findDuplicate:同名同位置未處理才算重複', () => {
+  const its = [{ name: '鮮 奶', location: '冷藏', done: false }, { name: '優格', location: '冷藏', done: true }];
+  assert.ok(HK.findDuplicate(its, '鮮奶', '冷藏'));
+  assert.equal(HK.findDuplicate(its, '鮮奶', '冷凍'), null);
+  assert.equal(HK.findDuplicate(its, '優格', '冷藏'), null);
+  assert.equal(HK.findDuplicate(its, '', '冷藏'), null);
+});

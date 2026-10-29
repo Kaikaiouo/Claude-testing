@@ -200,7 +200,7 @@
   $('qPlus').onclick = () => { $('fQty').value = Math.min(99, (+$('fQty').value || 1) + 1); };
 
   function openForm(item, pre) {
-    editing = item; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
+    editing = item; $('fSave').dataset.dupOk = ''; $('scanThumb').hidden = true; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
     $('fName').value = item ? item.name : ''; $('fCat').value = item ? item.category : HK.CATEGORIES[0]; $('fQty').value = item ? item.quantity : 1;
     $('fLoc').value = item ? item.location : '冷藏'; $('fTemp').value = item ? (item.tempC === null ? '' : item.tempC) : 4;
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
@@ -219,11 +219,15 @@
       sampleFn = sm; $('scanFile').accept = lim.images.mediaTypes.join(','); $('scanBox').hidden = false;
     } catch (e) { /* 沒有就維持手動輸入 */ }
   }
+  let thumbUrl = null;
+  function showThumb(f) {
+    try { if (thumbUrl) URL.revokeObjectURL(thumbUrl); thumbUrl = URL.createObjectURL(f); const t = $('scanThumb'); t.src = thumbUrl; t.hidden = false; } catch (e) { /* 預覽失敗不影響辨識 */ }
+  }
   const SCAN_ERR = { not_granted: '你沒有允許使用 Claude,可以手動輸入。', rate_limited: '太頻繁了,請稍後再試。', image_rejected: '這張圖片無法使用,換一張試試。', invalid_json: '沒有讀出內容,請拍清楚一點再試。', cancelled: '已取消。' };
   $('scanBtn').onclick = () => { if (scanCtl) { scanCtl.abort(); return; } $('scanFile').click(); };
   $('scanFile').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f || !sampleFn) return;
-    const msg = $('scanMsg'), btn = $('scanBtn'); scanCtl = new AbortController(); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在讀取包裝…';
+    const msg = $('scanMsg'), btn = $('scanBtn'); scanCtl = new AbortController(); showThumb(f); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在讀取包裝…';
     try {
       const raw = await sampleFn.json(HK.scanPrompt(today()), { images: [f], modelTier: 'quick', signal: scanCtl.signal });
       const r = HK.parseScan(raw, today());
@@ -243,6 +247,11 @@
   $('fSave').onclick = () => {
     const r = HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value }, today(), editing ? editing.id : undefined);
     if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return; }
+    if (!editing && $('fSave').dataset.dupOk !== r.item.name + '|' + r.item.location) {
+      const dup = HK.findDuplicate(state.items, r.item.name, r.item.location);
+      if (dup) { $('formErrs').textContent = `「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`; $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }
+    }
+    $('fSave').dataset.dupOk = '';
     if (editing) { Object.assign(editing, r.item, { done: editing.done, doneAt: editing.doneAt, createdAt: editing.createdAt }); }
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
