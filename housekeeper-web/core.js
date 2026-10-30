@@ -269,6 +269,17 @@
     return { item: Object.assign({}, item, { done: true, doneAt: now, outcome: wasted ? 'wasted' : 'used' }), done: true };
   }
 
+  // 批次處理已過期物品:回傳 { items: 新陣列, changed: 被處理的原物品快照(供復原) };全部記為 wasted
+  function finishExpired(items, today, now = Date.now()) {
+    const changed = [];
+    const out = items.map(i => {
+      if (i.done || daysLeft(i.expiry, today) === null || daysLeft(i.expiry, today) >= 0) return i;
+      changed.push(i); return finishItem(i, today, { now }).item;
+    });
+    return { items: out, changed };
+  }
+  function restoreItems(items, snapshots) { const m = new Map(snapshots.map(i => [i.id, i])); return items.map(i => m.get(i.id) || i); }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -276,7 +287,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, finishItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, finishItem, finishExpired, restoreItems, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

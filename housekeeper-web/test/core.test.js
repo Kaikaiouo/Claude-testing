@@ -275,3 +275,15 @@ test('sortItems:依名稱/最近新增排序,未知模式回到到期日', () =>
   assert.deepStrictEqual(HK.sortItems(items, 'added').map(i => i.name), ['a', 'c', 'b']);
   assert.deepStrictEqual(HK.sortItems(items, 'zzz').map(i => i.name), ['c', 'b', 'a']);
 });
+
+test('finishExpired 只處理已過期並可復原', () => {
+  const today = '2026-10-30';
+  const mk = (n, off) => HK.makeItem({ name: n, category: '蔬菜', location: '冷藏', quantity: 1, expiry: HK.addDays(today, off) }, today).item;
+  const items = [mk('a', -2), mk('b', 0), mk('c', -1)];
+  const r = HK.finishExpired(items, today, 123);
+  assert.equal(r.changed.length, 2);
+  assert.deepEqual(r.items.map(i => i.done), [true, false, true]);
+  assert.equal(r.items[0].outcome, 'wasted');
+  const back = HK.restoreItems(r.items, r.changed);
+  assert.deepEqual(back.map(i => i.done), [false, false, false]);
+});

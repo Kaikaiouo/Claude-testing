@@ -97,7 +97,7 @@
     // 提醒橫幅:已過期,或在「提醒天數」內
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
     const bn = $('banner'); bn.textContent = '';
-    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); bn.append(b); }
+    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all); } bn.append(b); }
     // 位置篩選
     const chips = $('chips'); chips.textContent = '';
     for (const name of ['全部', ...HK.LOCATIONS.map(l => l.name)]) {
