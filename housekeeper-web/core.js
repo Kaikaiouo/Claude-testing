@@ -109,6 +109,13 @@
 
   const sortByExpiry = items => [...items].sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : a.name.localeCompare(b.name)));
 
+  const SORTS = { expiry: '到期日', name: '名稱', added: '最近新增' };
+  function sortItems(items, mode) {
+    if (mode === 'name') return [...items].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant') || (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : 0));
+    if (mode === 'added') return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || a.name.localeCompare(b.name));
+    return sortByExpiry(items);
+  }
+
   function filterItems(items, { location = '', query = '', status: st = '', today: t = null } = {}) {
     const q = query.trim().toLowerCase();
     return items.filter(i => (!location || i.location === location) && (!st || !t || status(daysLeft(i.expiry, t)) === st) && (!q || i.name.toLowerCase().includes(q) || i.category.includes(q) || (i.notes || '').toLowerCase().includes(q)));
@@ -269,7 +276,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, finishItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, finishItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

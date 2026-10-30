@@ -44,7 +44,8 @@
   }
 
   // ---------- 清單 ----------
-  let locFilter = '', query = '', stFilter = '';
+  let locFilter = '', query = '', stFilter = '', sortMode = 'expiry';
+  try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
   const STATUS_LABEL = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
 
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -107,7 +108,7 @@
     }
     // 清單
     const list = $('list'); list.textContent = '';
-    const shown = HK.sortByExpiry(HK.filterItems(active, { location: locFilter, query, status: stFilter, today: t }));
+    const shown = HK.sortItems(HK.filterItems(active, { location: locFilter, query, status: stFilter, today: t }), sortMode);
     if (!shown.length) {
       const li = el('li', 'empty');
       if (!state.items.length) {
@@ -308,6 +309,8 @@
 
   // ---------- 設定 ----------
   for (let h = 0; h < 24; h++) $('sHour').append(new Option(`${String(h).padStart(2, '0')}:00`, h));
+  { const sel = $('sortSel'); for (const [k, v] of Object.entries(HK.SORTS)) sel.append(new Option('排序:' + v, k)); sel.value = sortMode;
+    sel.onchange = () => { sortMode = HK.SORTS[sel.value] ? sel.value : 'expiry'; try { localStorage.setItem('hk-sort', sortMode); } catch (e) {} render(); }; }
   $('btnSettings').onclick = () => { $('sDays').value = state.settings.reminderDays; $('sHour').value = state.settings.reminderHour; $('exportMsg').textContent = ''; $('setWrap').hidden = false; };
   $('sClose').onclick = () => {
     const d = Math.round(Number($('sDays').value)); state.settings.reminderDays = d >= 0 && d <= 60 ? d : 3; state.settings.reminderHour = +$('sHour').value;

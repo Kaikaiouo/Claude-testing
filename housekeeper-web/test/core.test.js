@@ -267,3 +267,11 @@ test('filterItems:依到期狀態篩選', () => {
   assert.deepStrictEqual(HK.filterItems(items, { status: 'expired', today: t }).map(i => i.name), ['a']);
   assert.strictEqual(HK.filterItems(items, { status: '', today: t }).length, 3);
 });
+
+test('sortItems:依名稱/最近新增排序,未知模式回到到期日', () => {
+  const mk = (n, e, c) => ({ name: n, expiry: e, createdAt: c });
+  const items = [mk('b', '2026-11-01', 1), mk('a', '2026-12-01', 3), mk('c', '2026-10-01', 2)];
+  assert.deepStrictEqual(HK.sortItems(items, 'name').map(i => i.name), ['a', 'b', 'c']);
+  assert.deepStrictEqual(HK.sortItems(items, 'added').map(i => i.name), ['a', 'c', 'b']);
+  assert.deepStrictEqual(HK.sortItems(items, 'zzz').map(i => i.name), ['c', 'b', 'a']);
+});
