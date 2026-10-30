@@ -249,7 +249,7 @@ test('openDays 自訂開封天數:保久乳 7 天、優先於類別預設、冷�
 
 test('milkPreset:鮮奶/保久乳預設值', () => {
   const u = HK.milkPreset('保久乳', T);
-  assert.deepStrictEqual([u.location, u.openDays, u.expiry, u.estimated], ['常溫', 7, '2027-04-27', true]);
+  assert.deepStrictEqual([u.location, u.openDays, u.expiry, u.estimated], ['冷藏', 7, '2027-04-27', true]);
   const f = HK.milkPreset('鮮奶', T); assert.deepStrictEqual([f.location, f.openDays, f.expiry], ['冷藏', 5, '2026-11-05']);
   assert.strictEqual(HK.milkPreset('豆漿', T), null);
 });

@@ -68,8 +68,8 @@
     const cap = addDays(today, days), changed = cap < item.expiry;
     return { days, changed, item: Object.assign({}, item, { openedAt: today, expiryBeforeOpen: item.expiry, expiry: changed ? cap : item.expiry, estimated: changed ? true : item.estimated }) };
   }
-  // 牛奶種類快速選項:鮮奶(冷藏、開封 5 天)、保久乳(常溫可放、開封後冷藏 7 天)。天數為保守估計,以包裝為準
-  const MILK_TYPES = { 鮮奶: { location: '冷藏', shelf: 7, openDays: 5 }, 保久乳: { location: '常溫', shelf: 180, openDays: 7 } };
+  // 牛奶種類快速選項:鮮奶(冷藏、開封 5 天)、保久乳(預設冷藏、未開封也可常溫;開封後 7 天)。天數為保守估計,以包裝為準
+  const MILK_TYPES = { 鮮奶: { location: '冷藏', shelf: 7, openDays: 5 }, 保久乳: { location: '冷藏', shelf: 180, openDays: 7 } };
   function milkPreset(type, purchase) {
     const m = MILK_TYPES[type]; if (!m) return null;
     return { name: type, category: '乳製品', location: m.location, openDays: m.openDays, expiry: addDays(purchase, m.shelf), estimated: true };
