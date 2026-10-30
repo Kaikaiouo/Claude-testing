@@ -44,7 +44,7 @@
   }
 
   // ---------- 清單 ----------
-  let locFilter = '', query = '';
+  let locFilter = '', query = '', stFilter = '';
   const STATUS_LABEL = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
 
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
@@ -92,7 +92,7 @@
     const t = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
     // 摘要
     const s = HK.summarize(state.items, t), stats = $('stats'); stats.textContent = '';
-    for (const k of ['expired', 'urgent', 'soon', 'ok']) { const d = el('div', 'stat ' + k); d.append(el('b', '', String(s[k])), el('span', '', STATUS_LABEL[k])); stats.append(d); }
+    for (const k of ['expired', 'urgent', 'soon', 'ok']) { const d = el('button', 'stat ' + k); d.type = 'button'; d.setAttribute('aria-pressed', String(stFilter === k)); d.setAttribute('aria-label', `${STATUS_LABEL[k]} ${s[k]} 項,點一下只看這類`); d.append(el('b', '', String(s[k])), el('span', '', STATUS_LABEL[k])); d.onclick = () => { stFilter = stFilter === k ? '' : k; render(); }; stats.append(d); }
     // 提醒橫幅:已過期,或在「提醒天數」內
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
     const bn = $('banner'); bn.textContent = '';
@@ -107,14 +107,14 @@
     }
     // 清單
     const list = $('list'); list.textContent = '';
-    const shown = HK.sortByExpiry(HK.filterItems(active, { location: locFilter, query }));
+    const shown = HK.sortByExpiry(HK.filterItems(active, { location: locFilter, query, status: stFilter, today: t }));
     if (!shown.length) {
       const li = el('li', 'empty');
       if (!state.items.length) {
         li.append(el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
         const a = el('div', 'actions'), add = el('button', 'primary', '新增第一個物品'), sample = el('button', '', '載入範例看看');
         add.onclick = () => openForm(null); sample.onclick = loadSample; a.append(add, sample); li.append(a);
-      } else li.append(el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? '換個關鍵字或位置試試。' : '全部都處理完了!'));
+      } else li.append(el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
       list.append(li);
     } else for (const i of shown) list.append(rowFor(i, 'active'));
     // 已處理

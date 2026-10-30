@@ -259,3 +259,11 @@ test('makeItem 保留合法的 openedAt,壞值變 null(備份往返不遺失)', 
   assert.strictEqual(ok.openedAt, '2026-10-28'); assert.strictEqual(ok.expiryBeforeOpen, '2026-11-20');
   assert.strictEqual(HK.makeItem(form({ openedAt: 'bad' }), T).item.openedAt, null);
 });
+
+test('filterItems:依到期狀態篩選', () => {
+  const t = '2026-10-30';
+  const mk = (n, e) => ({ name: n, category: '其他', location: '冷藏', expiry: e, done: false });
+  const items = [mk('a', '2026-10-28'), mk('b', '2026-10-31'), mk('c', '2027-01-01')];
+  assert.deepStrictEqual(HK.filterItems(items, { status: 'expired', today: t }).map(i => i.name), ['a']);
+  assert.strictEqual(HK.filterItems(items, { status: '', today: t }).length, 3);
+});

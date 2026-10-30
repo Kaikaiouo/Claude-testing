@@ -109,9 +109,9 @@
 
   const sortByExpiry = items => [...items].sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : a.name.localeCompare(b.name)));
 
-  function filterItems(items, { location = '', query = '' } = {}) {
+  function filterItems(items, { location = '', query = '', status: st = '', today: t = null } = {}) {
     const q = query.trim().toLowerCase();
-    return items.filter(i => (!location || i.location === location) && (!q || i.name.toLowerCase().includes(q) || i.category.includes(q) || (i.notes || '').toLowerCase().includes(q)));
+    return items.filter(i => (!location || i.location === location) && (!st || !t || status(daysLeft(i.expiry, t)) === st) && (!q || i.name.toLowerCase().includes(q) || i.category.includes(q) || (i.notes || '').toLowerCase().includes(q)));
   }
 
   function summarize(items, today) {
