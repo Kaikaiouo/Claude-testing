@@ -212,3 +212,12 @@ test('findDuplicate:同名同位置未處理才算重複', () => {
   assert.equal(HK.findDuplicate(its, '優格', '冷藏'), null);
   assert.equal(HK.findDuplicate(its, '', '冷藏'), null);
 });
+
+test('finishItem:數量>1 且 all=false 只減 1;否則標記處理並判定 outcome', () => {
+  const it = { quantity: 3, expiry: '2026-10-31', done: false };
+  const r = HK.finishItem(it, '2026-10-30', { all: false });
+  assert.equal(r.done, false); assert.equal(r.item.quantity, 2); assert.equal(it.quantity, 3);
+  const used = HK.finishItem({ quantity: 1, expiry: '2026-10-30' }, '2026-10-30', { all: false, now: 5 });
+  assert.deepStrictEqual([used.done, used.item.outcome, used.item.doneAt], [true, 'used', 5]);
+  assert.equal(HK.finishItem(it, '2026-11-02').item.outcome, 'wasted');
+});

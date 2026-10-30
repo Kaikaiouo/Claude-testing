@@ -27,8 +27,10 @@
 - 2026-10-30 約 01:00(台灣時間):新增拍照辨識(core.js 的 scanPrompt/parseScan + 測試、表單內辨識按鈕,無 sample 能力時自動隱藏;看不到日期時改用類別估算並標示估算)。21 個測試通過,400/1280 寬度(以 mock sample 驗證)無橫向捲動、無 JS 錯誤。已發布(artifact 版本 5),capabilities 現為 db、user、downloads、sample{images:true}。
 - 2026-10-29 約 22:15(UTC;台灣 10-30 06:15 左右):購物清單依類別分組(core.js 的 groupShopping + 測試)、所有對話框的焦點管理(開啟移入、Tab 不跳出、關閉還原焦點)、「吃完」提示條新增「復原」鈕。22 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(artifact 版本 6,capabilities 沿用不變)。
 - 2026-10-29 約 16:10(UTC;台灣 10-30 00:10):新增重複偵測(core.js 的 findDuplicate + 測試;新增同名同位置未處理物品時,第一次儲存先提醒、再按一次才存)、辨識前顯示所選照片縮圖。23 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(artifact 版本 7,capabilities 沿用)。
+- 2026-10-30 約 14:00(UTC;台灣約 22:00):數量>1 的物品新增「用 1 個」鈕(core.js 的 finishItem + 測試,「吃完」也改走 finishItem)。24 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(artifact 版本 8,capabilities 沿用)。
 
 ## 給下次的筆記
+- 「用 1 個」只減數量,不計入統計的已處理/浪費率(部分使用不判定 outcome);整筆吃完才記錄。
 - 焦點管理用 MutationObserver 監看 .sheetwrap 的 hidden,新增對話框只要用 .sheetwrap 結構就自動套用。發布時若被拒絕說未讀過線上版本,先 read 後原樣再發一次即可。
 - 下一步建議:PWA(manifest/service worker 在 Artifact 沙盒是否可用未驗證)、辨識縮圖預覽與多件商品一次辨識、條碼(M2b)、家庭共用(M4,需使用者決定隱私與帳號模型)。
 - 拍照辨識:真實 sample 呼叫無法在這個環境測,只用 mock 驗證流程;用 modelTier 'quick'。日期一律由使用者確認(prompt 要求看不清填 null、不猜)。下次可加:辨識中顯示縮圖預覽、多件商品一次辨識(陣列)。

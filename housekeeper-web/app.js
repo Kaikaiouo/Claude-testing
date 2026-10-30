@@ -73,8 +73,12 @@
       acts.append(undo, del); li.append(acts);
     } else {
       const d = el('button', 'done-btn', '吃完'); d.title = '標記為已吃完/已處理';
-      d.onclick = () => { item.done = true; item.doneAt = Date.now(); item.outcome = HK.daysLeft(item.expiry, today()) < 0 ? 'wasted' : 'used'; commit(); offerRestock(item); };
-      li.append(d);
+      d.onclick = () => { Object.assign(item, HK.finishItem(item, today()).item); commit(); offerRestock(item); };
+      if (item.quantity > 1) {
+        const one = el('button', 'done-btn', '用 1 個'); one.title = `數量 ${item.quantity} → ${item.quantity - 1}`;
+        one.onclick = () => { Object.assign(item, HK.finishItem(item, today(), { all: false }).item); commit(); };
+        const acts = el('div', 'acts'); acts.append(one, d); li.append(acts);
+      } else li.append(d);
     }
     return li;
   }
