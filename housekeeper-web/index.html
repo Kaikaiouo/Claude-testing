@@ -75,6 +75,7 @@
   .field { margin-bottom:12px; } .field > label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:4px; }
   .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .qty { display:flex; align-items:center; gap:8px; } .qty input { text-align:center; width:64px; } .qty button { width:42px; padding:8px 0; }
+  .opened { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; } .opened button { padding:4px 10px; font-size:.8rem; border-radius:999px; } .opened .note { font-size:.8rem; }
   .quick { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; } .quick button { padding:4px 10px; font-size:.8rem; border-radius:999px; }
   .check { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-top:6px; } .check input { width:auto; }
   .scanbox button { width:100%; padding:10px; border-style:dashed; } .scanbox .note { margin-top:4px; } #scanThumb { display:block; margin-top:8px; max-height:120px; max-width:100%; border-radius:10px; object-fit:cover; }
@@ -172,6 +173,7 @@
   </div>
   <div class="field"><label for="fExpiry">到期日</label><input id="fExpiry" type="date">
     <div class="quick" id="quick"></div>
+    <div class="opened" id="openedRow" hidden><button type="button" id="fOpen">已開封:縮短到期日</button><span id="openedMsg" class="note"></span></div>
     <label class="check"><input id="fEst" type="checkbox">到期日是估算值(包裝沒有標示)</label>
   </div>
   <div class="field"><label for="fNotes">備註</label><textarea id="fNotes" rows="2" maxlength="300"></textarea></div>

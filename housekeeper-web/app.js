@@ -63,7 +63,7 @@
     const info = el('button', 'info'); info.type = 'button';
     info.append(el('div', 'nm', item.name + (item.quantity > 1 ? ` ×${item.quantity}` : '')));
     info.append(el('div', 'meta', `${item.category}・${item.location}${item.tempC !== null ? ' ' + item.tempC + '°C' : ''}`));
-    info.append(el('div', 'meta', `${item.expiry}${item.estimated ? '(估算)' : ''}`));
+    info.append(el('div', 'meta', `${item.expiry}${item.estimated ? '(估算)' : ''}${item.openedAt ? '・已開封' : ''}`));
     info.onclick = () => openForm(item);
     li.append(info);
     if (mode === 'done') {
@@ -210,9 +210,24 @@
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
     $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : '';
     if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; }
+    syncOpened();
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
     $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
   }
+  function syncOpened() {
+    const row = $('openedRow'), b = $('fOpen'), m = $('openedMsg');
+    const it = editing; row.hidden = !it || it.done || !(it.openedAt || HK.openedDays(it.category, it.location));
+    if (row.hidden) return;
+    if (it.openedAt) { b.textContent = '復原開封'; m.textContent = `${it.openedAt} 開封`; }
+    else { b.textContent = '已開封:縮短到期日'; m.textContent = `開封後約 ${HK.openedDays(it.category, it.location)} 天內吃完(保守估計,以包裝為準)`; }
+  }
+  $('fOpen').onclick = () => {
+    const it = editing; if (!it) return;
+    if (it.openedAt) { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; closeForm(); commit(); return; }
+    const r = HK.openItem(it, today()); if (!r) return;
+    Object.assign(it, r.item); closeForm(); commit();
+    snack(r.changed ? `「${it.name}」開封,到期日改為 ${it.expiry}` : `「${it.name}」已標示開封,原到期日更早,不變`, '復原', () => { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; commit(); });
+  };
   // 拍照辨識(需 sample 能力且 images 可用,否則整個區塊隱藏)
   let sampleFn = null, scanCtl = null;
   async function initScan() {

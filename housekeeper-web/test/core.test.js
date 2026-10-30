@@ -221,3 +221,23 @@ test('finishItem:數量>1 且 all=false 只減 1;否則標記處理並判定 out
   assert.deepStrictEqual([used.done, used.item.outcome, used.item.doneAt], [true, 'used', 5]);
   assert.equal(HK.finishItem(it, '2026-11-02').item.outcome, 'wasted');
 });
+
+test('openItem:開封後到期日只會提前,可復原;冷凍/已開封/無規則類別不適用', () => {
+  const mk = o => HK.makeItem(form(o), T).item;
+  const milk = mk({ expiry: '2026-11-20' });
+  const r = HK.openItem(milk, T);
+  assert.strictEqual(r.item.expiry, '2026-11-03'); assert.strictEqual(r.item.openedAt, T); assert.strictEqual(r.changed, true); assert.strictEqual(r.item.estimated, true);
+  assert.strictEqual(HK.openItem(r.item, T), null); // 已開封
+  const back = HK.unopenItem(r.item);
+  assert.strictEqual(back.expiry, '2026-11-20'); assert.strictEqual(back.openedAt, undefined);
+  const soon = HK.openItem(mk({ expiry: '2026-10-31' }), T); // 本來就更早:不延後
+  assert.strictEqual(soon.item.expiry, '2026-10-31'); assert.strictEqual(soon.changed, false);
+  assert.strictEqual(HK.openItem(mk({ location: '冷凍' }), T), null);
+  assert.strictEqual(HK.openItem(mk({ category: '日用品', location: '櫃子' }), T), null);
+});
+
+test('makeItem 保留合法的 openedAt,壞值變 null(備份往返不遺失)', () => {
+  const ok = HK.makeItem(form({ openedAt: '2026-10-28', expiryBeforeOpen: '2026-11-20' }), T).item;
+  assert.strictEqual(ok.openedAt, '2026-10-28'); assert.strictEqual(ok.expiryBeforeOpen, '2026-11-20');
+  assert.strictEqual(HK.makeItem(form({ openedAt: 'bad' }), T).item.openedAt, null);
+});

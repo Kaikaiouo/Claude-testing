@@ -56,6 +56,21 @@
     return { date: addDays(purchase, days), days };
   }
 
+  // 開封後建議的保守保存天數(冷藏/常溫;冷凍與無明確規則的類別為 null)。僅供估算,以包裝標示為準。
+  const OPENED_DAYS = { 乳製品: 5, 飲料: 7, 調味料: 90, 肉類: 2, 蔬菜: 3, 水果: 3, 藥品: 30, 保養品: 180 };
+  function openedDays(category, location) { return location === '冷凍' ? null : (OPENED_DAYS[category] || null); }
+  // 標示開封:到期日只會提前、不會延後;回傳 { item, changed, days } 或 null(不適用/已開封)
+  function openItem(item, today) {
+    const days = openedDays(item.category, item.location);
+    if (!days || item.done || item.openedAt) return null;
+    const cap = addDays(today, days), changed = cap < item.expiry;
+    return { days, changed, item: Object.assign({}, item, { openedAt: today, expiryBeforeOpen: item.expiry, expiry: changed ? cap : item.expiry, estimated: changed ? true : item.estimated }) };
+  }
+  function unopenItem(item) {
+    if (!item.openedAt) return item;
+    const r = Object.assign({}, item, { expiry: item.expiryBeforeOpen || item.expiry }); delete r.openedAt; delete r.expiryBeforeOpen; return r;
+  }
+
   function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
   // 驗證並正規化表單資料;回傳 { item, errors }
@@ -79,7 +94,7 @@
         id: id || newId(), name, category: CATEGORIES.includes(f.category) ? f.category : '其他',
         location: LOCATIONS.some(l => l.name === f.location) ? f.location : '冷藏', quantity: qty,
         mfg: f.mfg || null, expiry: f.expiry, estimated: !!f.estimated, purchase, tempC: temp,
-        notes: String(f.notes || '').slice(0, 300), done: false, doneAt: null, createdAt: Date.now(),
+        notes: String(f.notes || '').slice(0, 300), openedAt: parseDay(f.openedAt) !== null ? f.openedAt : null, expiryBeforeOpen: parseDay(f.expiryBeforeOpen) !== null ? f.expiryBeforeOpen : null, done: false, doneAt: null, createdAt: Date.now(),
       },
     };
   }
@@ -246,7 +261,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, finishItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, finishItem, OPENED_DAYS, openedDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
