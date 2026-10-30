@@ -163,6 +163,7 @@
     <div class="field"><label for="fCat">類別</label><select id="fCat"></select></div>
     <div class="field"><label>數量</label><div class="qty"><button type="button" id="qMinus" aria-label="減少">−</button><input id="fQty" type="number" min="1" max="99" value="1" inputmode="numeric"><button type="button" id="qPlus" aria-label="增加">+</button></div></div>
   </div>
+  <div class="field" id="milkRow" hidden><label>牛奶種類</label><div class="quick" id="milkQuick"></div></div>
   <div class="two">
     <div class="field"><label for="fLoc">存放位置</label><select id="fLoc"></select></div>
     <div class="field"><label for="fTemp">存放溫度 °C(可空)</label><input id="fTemp" type="number" step="0.5" inputmode="decimal"></div>
@@ -176,6 +177,7 @@
     <div class="opened" id="openedRow" hidden><button type="button" id="fOpen">已開封:縮短到期日</button><span id="openedMsg" class="note"></span></div>
     <label class="check"><input id="fEst" type="checkbox">到期日是估算值(包裝沒有標示)</label>
   </div>
+  <div class="field"><label for="fOpenDays">開封後幾天內吃完(可空)</label><input id="fOpenDays" type="number" min="1" max="365" inputmode="numeric" placeholder="例如保久乳填 7;空白依類別估算"></div>
   <div class="field"><label for="fNotes">備註</label><textarea id="fNotes" rows="2" maxlength="300"></textarea></div>
   <div class="btns"><button id="fDelete" class="danger grow" hidden>刪除</button><button id="fCancel">取消</button><button id="fSave" class="primary">儲存</button></div>
 </div></div>

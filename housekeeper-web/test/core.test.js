@@ -236,6 +236,24 @@ test('openItem:開封後到期日只會提前,可復原;冷凍/已開封/無規�
   assert.strictEqual(HK.openItem(mk({ category: '日用品', location: '櫃子' }), T), null);
 });
 
+test('openDays 自訂開封天數:保久乳 7 天、優先於類別預設、冷凍也適用、壞值忽略', () => {
+  const uht = HK.makeItem(form({ name: '保久乳', expiry: '2027-03-01', openDays: '7' }), T).item;
+  assert.strictEqual(uht.openDays, 7);
+  const r = HK.openItem(uht, T);
+  assert.strictEqual(r.item.expiry, '2026-11-05'); assert.strictEqual(r.days, 7);
+  assert.strictEqual(HK.openItem(HK.makeItem(form({ location: '冷凍', openDays: 3, expiry: '2027-03-01' }), T).item, T).item.expiry, '2026-11-01');
+  assert.strictEqual(HK.makeItem(form({ openDays: 0 }), T).item.openDays, null);
+  assert.strictEqual(HK.makeItem(form({ openDays: '' }), T).item.openDays, null);
+  assert.strictEqual(HK.openedDays('乳製品', '冷藏', null), 5);
+});
+
+test('milkPreset:鮮奶/保久乳預設值', () => {
+  const u = HK.milkPreset('保久乳', T);
+  assert.deepStrictEqual([u.location, u.openDays, u.expiry, u.estimated], ['常溫', 7, '2027-04-27', true]);
+  const f = HK.milkPreset('鮮奶', T); assert.deepStrictEqual([f.location, f.openDays, f.expiry], ['冷藏', 5, '2026-11-05']);
+  assert.strictEqual(HK.milkPreset('豆漿', T), null);
+});
+
 test('makeItem 保留合法的 openedAt,壞值變 null(備份往返不遺失)', () => {
   const ok = HK.makeItem(form({ openedAt: '2026-10-28', expiryBeforeOpen: '2026-11-20' }), T).item;
   assert.strictEqual(ok.openedAt, '2026-10-28'); assert.strictEqual(ok.expiryBeforeOpen, '2026-11-20');

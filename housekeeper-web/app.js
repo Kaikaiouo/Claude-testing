@@ -73,7 +73,7 @@
       acts.append(undo, del); li.append(acts);
     } else {
       const d = el('button', 'done-btn', '吃完'); d.title = '標記為已吃完/已處理';
-      const canOpen = !item.openedAt && HK.openedDays(item.category, item.location);
+      const canOpen = !item.openedAt && HK.openedDays(item.category, item.location, item.openDays);
       d.onclick = () => { Object.assign(item, HK.finishItem(item, today()).item); commit(); offerRestock(item); };
       if (item.quantity > 1) {
         const one = el('button', 'done-btn', '用 1 個'); one.title = `數量 ${item.quantity} → ${item.quantity - 1}`;
@@ -203,6 +203,21 @@
     q.append(est);
   }
   setQuick();
+  // 乳製品:鮮奶 / 保久乳 快速選項
+  (function () {
+    const q = $('milkQuick');
+    for (const type of Object.keys(HK.MILK_TYPES)) {
+      const b = el('button', '', type); b.type = 'button'; b.title = `開封後約 ${HK.MILK_TYPES[type].openDays} 天內吃完`;
+      b.onclick = () => {
+        const p = HK.milkPreset(type, $('fPurchase').value || today());
+        if (!$('fName').value.trim() || Object.keys(HK.MILK_TYPES).includes($('fName').value.trim())) $('fName').value = p.name;
+        $('fCat').value = p.category; $('fLoc').value = p.location; $('fLoc').onchange();
+        $('fOpenDays').value = p.openDays; $('fExpiry').value = p.expiry; $('fEst').checked = true; syncOpened();
+      };
+      q.append(b);
+    }
+    $('fCat').onchange = () => { $('milkRow').hidden = $('fCat').value !== '乳製品'; };
+  })();
 
   $('fLoc').onchange = () => { const l = HK.LOCATIONS.find(x => x.name === $('fLoc').value); $('fTemp').value = l && l.tempC !== null ? l.tempC : ''; };
   $('qMinus').onclick = () => { $('fQty').value = Math.max(1, (+$('fQty').value || 1) - 1); };
@@ -213,21 +228,23 @@
     $('fName').value = item ? item.name : ''; $('fCat').value = item ? item.category : HK.CATEGORIES[0]; $('fQty').value = item ? item.quantity : 1;
     $('fLoc').value = item ? item.location : '冷藏'; $('fTemp').value = item ? (item.tempC === null ? '' : item.tempC) : 4;
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
-    $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : '';
+    $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : ''; $('fOpenDays').value = item && item.openDays ? item.openDays : '';
     if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; }
-    syncOpened();
+    $('fCat').onchange(); syncOpened();
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
     $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
   }
   function syncOpened() {
     const row = $('openedRow'), b = $('fOpen'), m = $('openedMsg');
-    const it = editing; row.hidden = !it || it.done || !(it.openedAt || HK.openedDays(it.category, it.location));
+    const it = editing, od = HK.okOpenDays($('fOpenDays').value), n = it && HK.openedDays(it.category, it.location, od); row.hidden = !it || it.done || !(it.openedAt || n);
     if (row.hidden) return;
     if (it.openedAt) { b.textContent = '復原開封'; m.textContent = `${it.openedAt} 開封`; }
-    else { b.textContent = '已開封:縮短到期日'; m.textContent = `開封後約 ${HK.openedDays(it.category, it.location)} 天內吃完(保守估計,以包裝為準)`; }
+    else { b.textContent = '已開封:縮短到期日'; m.textContent = `開封後約 ${n} 天內吃完${od ? '(你設定的天數)' : '(保守估計,以包裝為準)'}`; }
   }
+  $('fOpenDays').oninput = syncOpened;
   $('fOpen').onclick = () => {
     const it = editing; if (!it) return;
+    it.openDays = HK.okOpenDays($('fOpenDays').value);
     if (it.openedAt) { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; closeForm(); commit(); return; }
     closeForm(); doOpen(it);
   };
@@ -272,7 +289,7 @@
   $('fCancel').onclick = closeForm;
   $('formWrap').addEventListener('click', e => { if (e.target === $('formWrap')) closeForm(); });
   $('fSave').onclick = () => {
-    const r = HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value }, today(), editing ? editing.id : undefined);
+    const r = HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value, openDays: $('fOpenDays').value, openedAt: editing && editing.openedAt, expiryBeforeOpen: editing && editing.expiryBeforeOpen }, today(), editing ? editing.id : undefined);
     if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return; }
     if (!editing && $('fSave').dataset.dupOk !== r.item.name + '|' + r.item.location) {
       const dup = HK.findDuplicate(state.items, r.item.name, r.item.location);
