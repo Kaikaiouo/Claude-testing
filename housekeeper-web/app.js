@@ -73,11 +73,16 @@
       acts.append(undo, del); li.append(acts);
     } else {
       const d = el('button', 'done-btn', '吃完'); d.title = '標記為已吃完/已處理';
+      const canOpen = !item.openedAt && HK.openedDays(item.category, item.location);
       d.onclick = () => { Object.assign(item, HK.finishItem(item, today()).item); commit(); offerRestock(item); };
       if (item.quantity > 1) {
         const one = el('button', 'done-btn', '用 1 個'); one.title = `數量 ${item.quantity} → ${item.quantity - 1}`;
         one.onclick = () => { Object.assign(item, HK.finishItem(item, today(), { all: false }).item); commit(); };
         const acts = el('div', 'acts'); acts.append(one, d); li.append(acts);
+      } else if (canOpen) {
+        const op = el('button', 'done-btn', '開封'); op.title = `標示已開封,約 ${canOpen} 天內吃完`; op.setAttribute('aria-label', `${item.name} 標示開封`);
+        op.onclick = () => doOpen(item);
+        const acts = el('div', 'acts'); acts.append(op, d); li.append(acts);
       } else li.append(d);
     }
     return li;
@@ -224,10 +229,13 @@
   $('fOpen').onclick = () => {
     const it = editing; if (!it) return;
     if (it.openedAt) { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; closeForm(); commit(); return; }
-    const r = HK.openItem(it, today()); if (!r) return;
-    Object.assign(it, r.item); closeForm(); commit();
-    snack(r.changed ? `「${it.name}」開封,到期日改為 ${it.expiry}` : `「${it.name}」已標示開封,原到期日更早,不變`, '復原', () => { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; commit(); });
+    closeForm(); doOpen(it);
   };
+  function doOpen(it) {
+    const r = HK.openItem(it, today()); if (!r) return;
+    Object.assign(it, r.item); commit();
+    snack(r.changed ? `「${it.name}」開封,到期日改為 ${it.expiry}` : `「${it.name}」已標示開封,原到期日更早,不變`, '復原', () => { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; commit(); });
+  }
   // 拍照辨識(需 sample 能力且 images 可用,否則整個區塊隱藏)
   let sampleFn = null, scanCtl = null;
   async function initScan() {
