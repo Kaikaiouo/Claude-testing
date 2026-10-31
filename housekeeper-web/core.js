@@ -290,6 +290,8 @@
     });
     return { items: out, changed };
   }
+  function removeItem(items, id) { return items.filter(i => i.id !== id); }
+  function reinsertItem(items, item, idx) { if (items.some(i => i.id === item.id)) return items; const a = items.slice(); a.splice(Math.max(0, Math.min(idx, a.length)), 0, item); return a; }
   function restoreItems(items, snapshots) { const m = new Map(snapshots.map(i => [i.id, i])); return items.map(i => m.get(i.id) || i); }
 
   // 常用名稱(含已處理的),最近新增的在前,去重(忽略大小寫與空白)
@@ -322,7 +324,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, knownNames, recallItem, finishItem, finishExpired, restoreItems, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, knownNames, recallItem, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

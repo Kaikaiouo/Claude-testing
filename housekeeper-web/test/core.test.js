@@ -328,3 +328,12 @@ test('finishExpired 可指定記為 used(不算浪費)', () => {
   assert.equal(r.items[0].outcome, 'used');
   assert.equal(r.items[0].done, true);
 });
+test('removeItem / reinsertItem 刪除後可原位復原', () => {
+  const mk = n => HK.makeItem({ name: n, category: '蔬菜', location: '冷藏', quantity: 1, expiry: '2026-11-05' }, T).item;
+  const [a, b, c] = ['a', 'b', 'c'].map(mk);
+  const after = HK.removeItem([a, b, c], b.id);
+  assert.deepEqual(after.map(i => i.name), ['a', 'c']);
+  assert.deepEqual(HK.reinsertItem(after, b, 1).map(i => i.name), ['a', 'b', 'c']);
+  assert.equal(HK.reinsertItem([a, b], b, 0).length, 2);
+  assert.equal(HK.reinsertItem([], b, 9).length, 1);
+});

@@ -70,7 +70,7 @@
     if (mode === 'done') {
       const acts = el('div', 'acts'), undo = el('button', '', '還原'), del = el('button', 'danger', '刪除');
       undo.onclick = () => { item.done = false; item.doneAt = null; delete item.outcome; commit(); };
-      del.onclick = () => { if (del.dataset.arm) { state.items = state.items.filter(i => i.id !== item.id); commit(); } else { del.dataset.arm = '1'; del.textContent = '確定?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; }, 2500); } };
+      del.onclick = () => { if (del.dataset.arm) { removeItem(item); } else { del.dataset.arm = '1'; del.textContent = '確定?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; }, 2500); } };
       acts.append(undo, del); li.append(acts);
     } else {
       const d = el('button', 'done-btn', '吃完'); d.title = '標記為已吃完/已處理';
@@ -139,6 +139,11 @@
     box.append(el('span', '', text));
     if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => { box.hidden = true; action(); }; box.append(b); }
     box.hidden = false; snackTimer = setTimeout(() => { box.hidden = true; }, 6000);
+  }
+  function removeItem(item) {
+    const idx = state.items.findIndex(i => i.id === item.id); if (idx < 0) return;
+    state.items = HK.removeItem(state.items, item.id); commit();
+    snack(`已刪除「${item.name}」`, '復原', () => { state.items = HK.reinsertItem(state.items, item, idx); commit(); });
   }
   function addToShopping(f) {
     const r = HK.addShopping(state.shopping, f); if (!r.added) return false;
@@ -316,7 +321,7 @@
   $('fDelete').onclick = () => {
     const b = $('fDelete');
     if (!b.dataset.arm) { b.dataset.arm = '1'; b.textContent = '再按一次確認刪除'; return; }
-    state.items = state.items.filter(i => i.id !== editing.id); closeForm(); commit();
+    const gone = editing; closeForm(); removeItem(gone);
   };
 
   // ---------- 設定 ----------
