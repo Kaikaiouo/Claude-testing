@@ -146,6 +146,19 @@ test('stats:浪費率與類別分佈', () => {
   assert.strictEqual(HK.stats([], T).wasteRate, null);
 });
 
+test('stats:最常浪費品項與最近 4 週趨勢', () => {
+  const at = d => new Date(d + 'T12:00:00').getTime();
+  const D = HK.todayStr(new Date('2026-10-31T12:00:00'));
+  const mk = (n, o) => Object.assign(HK.makeItem(form({ name: n }), D, n + Math.random()).item, { done: true }, o);
+  const items = [mk('牛奶', { outcome: 'wasted', doneAt: at('2026-10-30') }), mk('牛奶', { outcome: 'wasted', doneAt: at('2026-10-20') }), mk('鮮奶', { outcome: 'wasted', doneAt: at('2026-10-10') }),
+    mk('蛋', { outcome: 'used', doneAt: at('2026-10-31') }), mk('舊', { outcome: 'wasted', doneAt: at('2026-08-01') }), mk('無時間', { outcome: 'used' })];
+  const s = HK.stats(items, D);
+  assert.deepStrictEqual(s.topWasted[0], { name: '牛奶', count: 2 });
+  assert.strictEqual(s.weeks.length, 4);
+  assert.deepStrictEqual(s.weeks[3], { weeksAgo: 0, used: 1, wasted: 1 });
+  assert.strictEqual(s.weeks[2].wasted, 1); assert.strictEqual(s.weeks[1].wasted, 0); assert.strictEqual(s.weeks[0].wasted, 1);
+});
+
 test('備份:匯出再匯入內容一致;壞資料略過;非備份檔回報錯誤', () => {
   const a = HK.makeItem(form({ name: '牛奶' }), T, 'x1').item, b = Object.assign(HK.makeItem(form({ name: '雞蛋' }), T, 'x2').item, { done: true, doneAt: 5, outcome: 'wasted' });
   const st = { items: [a, b], settings: { reminderDays: 5, reminderHour: 8 } };

@@ -169,7 +169,19 @@
     const byCategory = {};
     for (const i of active) byCategory[i.category] = (byCategory[i.category] || 0) + (i.quantity || 1);
     const cats = Object.entries(byCategory).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-    return { activeCount: active.length, doneCount: done.length, wasted, used: done.length - wasted,
+    // 最常浪費的品項(同名合併,忽略大小寫,至多 5 筆)
+    const wm = new Map();
+    for (const i of done.filter(x => x.outcome === 'wasted')) { const k = String(i.name).trim().toLowerCase(), e = wm.get(k) || { name: String(i.name).trim(), count: 0 }; e.count++; wm.set(k, e); }
+    const topWasted = [...wm.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 5);
+    // 最近 4 週(含本週,每週 7 天,以處理時間 doneAt 換算成台灣當地日期的天數差)
+    const weeks = [0, 1, 2, 3].map(n => ({ weeksAgo: 3 - n, used: 0, wasted: 0 }));
+    for (const i of done) {
+      if (!Number.isFinite(i.doneAt)) continue;
+      const ago = daysLeft(todayStr(new Date(i.doneAt)), today) * -1, w = Math.floor(ago / 7);
+      if (ago < 0 || w > 3) continue;
+      weeks[3 - w][i.outcome === 'wasted' ? 'wasted' : 'used']++;
+    }
+    return { topWasted, weeks, activeCount: active.length, doneCount: done.length, wasted, used: done.length - wasted,
       wasteRate: done.length ? wasted / done.length : null, categories: cats,
       expiredNow: active.filter(i => daysLeft(i.expiry, today) < 0).length };
   }

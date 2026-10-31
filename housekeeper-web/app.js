@@ -371,6 +371,18 @@
       for (const [v, l] of [[String(s.activeCount), '待處理'], [String(s.doneCount), '已處理'], [s.wasteRate === null ? '—' : Math.round(s.wasteRate * 100) + '%', '浪費率']]) { const d = el('div'); d.append(el('b', '', v), el('span', '', l)); big.append(d); }
       body.append(big);
       body.append(el('p', 'note', s.doneCount ? `已處理的 ${s.doneCount} 項中,${s.used} 項在到期前處理、${s.wasted} 項是過期後才處理。` : '浪費率 = 過期後才處理的比例,處理過物品後才會出現。'));
+      if (s.doneCount) {
+        body.append(el('h2', '', '最近 4 週處理'));
+        const wk = el('div', 'bars'), wmax = Math.max(1, ...s.weeks.map(w => w.used + w.wasted));
+        for (const w of s.weeks) { const r = el('div', 'bar'), i = el('i'), n = w.used + w.wasted; i.style.width = n ? Math.max(4, n / wmax * 100) + '%' : '0'; r.append(el('span', '', w.weeksAgo ? w.weeksAgo + ' 週前' : '本週'), i, el('em', '', String(n))); r.title = `吃完/用完 ${w.used} 項、過期才處理 ${w.wasted} 項`; wk.append(r); }
+        body.append(wk);
+      }
+      if (s.topWasted.length) {
+        body.append(el('h2', '', '最常過期才處理'));
+        const tw = el('div', 'bars'), tmax = s.topWasted[0].count;
+        for (const c of s.topWasted) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / tmax * 100) + '%'; i.style.background = 'var(--expired)'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); tw.append(r); }
+        body.append(tw);
+      }
       body.append(el('h2', '', '待處理的類別'));
       if (s.categories.length) { const bars = el('div', 'bars'), max = s.categories[0].count; for (const c of s.categories) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / max * 100) + '%'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); bars.append(r); } body.append(bars); }
       else body.append(el('p', 'note', '目前沒有待處理的物品。'));
