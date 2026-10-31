@@ -282,11 +282,11 @@
   }
 
   // 批次處理已過期物品:回傳 { items: 新陣列, changed: 被處理的原物品快照(供復原) };全部記為 wasted
-  function finishExpired(items, today, now = Date.now()) {
+  function finishExpired(items, today, now = Date.now(), outcome = 'wasted') {
     const changed = [];
     const out = items.map(i => {
       if (i.done || daysLeft(i.expiry, today) === null || daysLeft(i.expiry, today) >= 0) return i;
-      changed.push(i); return finishItem(i, today, { now }).item;
+      changed.push(i); const d = finishItem(i, today, { now }).item; return outcome === 'used' ? Object.assign({}, d, { outcome: 'used' }) : d;
     });
     return { items: out, changed };
   }

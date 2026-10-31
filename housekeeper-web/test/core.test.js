@@ -320,3 +320,11 @@ test('knownNames / recallItem 也納入購物清單名稱', () => {
   assert.strictEqual(r.category, '蔬菜'); assert.strictEqual(r.quantity, 2); assert.strictEqual(r.expiry, null);
   assert.strictEqual(HK.recallItem([], '豆腐', '2026-10-31'), null);
 });
+
+test('finishExpired 可指定記為 used(不算浪費)', () => {
+  const today = '2026-10-30';
+  const it = HK.makeItem({ name: 'a', category: '蔬菜', location: '冷藏', quantity: 1, expiry: HK.addDays(today, -2) }, today).item;
+  const r = HK.finishExpired([it], today, 5, 'used');
+  assert.equal(r.items[0].outcome, 'used');
+  assert.equal(r.items[0].done, true);
+});
