@@ -374,8 +374,18 @@
       if (s.doneCount) {
         body.append(el('h2', '', '最近 4 週處理'));
         const wk = el('div', 'bars'), wmax = Math.max(1, ...s.weeks.map(w => w.used + w.wasted));
-        for (const w of s.weeks) { const r = el('div', 'bar'), i = el('i'), n = w.used + w.wasted; i.style.width = n ? Math.max(4, n / wmax * 100) + '%' : '0'; r.append(el('span', '', w.weeksAgo ? w.weeksAgo + ' 週前' : '本週'), i, el('em', '', String(n))); r.title = `吃完/用完 ${w.used} 項、過期才處理 ${w.wasted} 項`; wk.append(r); }
+        for (const w of s.weeks) {
+          const r = el('div', 'bar'), st = el('div', 'stack'), n = w.used + w.wasted;
+          st.style.width = n ? Math.max(4, n / wmax * 100) + '%' : '0';
+          if (w.used) { const u = el('i'); u.style.flex = String(w.used); st.append(u); }
+          if (w.wasted) { const x = el('i', 'w'); x.style.flex = String(w.wasted); st.append(x); }
+          const sw = el('div', 'stackwrap'); sw.append(st);
+          r.append(el('span', '', w.weeksAgo ? w.weeksAgo + ' 週前' : '本週'), sw, el('em', '', String(n)));
+          r.title = `吃完/用完 ${w.used} 項、過期才處理 ${w.wasted} 項`; wk.append(r);
+        }
+        wk.setAttribute('role', 'img'); wk.setAttribute('aria-label', '最近 4 週處理數量:' + s.weeks.map(w => (w.weeksAgo ? w.weeksAgo + ' 週前' : '本週') + ' ' + (w.used + w.wasted) + ' 項(過期 ' + w.wasted + ')').join('、'));
         body.append(wk);
+        const lg = el('p', 'note legend'); lg.innerHTML = '<span class="dot"></span>到期前處理 <span class="dot w"></span>過期才處理'; body.append(lg);
       }
       if (s.topWasted.length) {
         body.append(el('h2', '', '最常過期才處理'));

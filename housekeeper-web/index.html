@@ -85,6 +85,8 @@
   .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap; } .btns .grow { margin-right:auto; }
   .hbtns { display:flex; gap:6px; } .hbtns button { white-space:nowrap; }
   @media (max-width: 440px) { .hbtns button { padding:8px 9px; font-size:.82rem; } .hbtns { gap:4px; } }
+  .stackwrap { display:flex; } .stack { display:flex; gap:2px; height:10px; min-width:4px; } .stack i { height:10px; min-width:4px; border-radius:6px; background:var(--brand); } .stack i.w { background:var(--expired); }
+  .legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:-8px; } .legend .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--brand); margin-right:4px; vertical-align:middle; } .legend .dot.w { background:var(--expired); }
   .bars { display:flex; flex-direction:column; gap:6px; margin:8px 0 14px; }
   .bar { display:grid; grid-template-columns:4.5em 1fr 2em; align-items:center; gap:8px; font-size:.85rem; }
   .bar i { display:block; height:10px; border-radius:6px; background:var(--brand); min-width:4px; } .bar em { font-style:normal; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); }
