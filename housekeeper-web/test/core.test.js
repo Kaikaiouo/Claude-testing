@@ -287,3 +287,15 @@ test('finishExpired 只處理已過期並可復原', () => {
   const back = HK.restoreItems(r.items, r.changed);
   assert.deepEqual(back.map(i => i.done), [false, false, false]);
 });
+
+test('knownNames 去重並依最近新增排序', () => {
+  const mk = (name, createdAt) => ({ name, createdAt });
+  assert.deepStrictEqual(HK.knownNames([mk('鮮奶', 1), mk('優格', 3), mk(' 鮮 奶 ', 5), mk('', 9)]), [' 鮮 奶 ', '優格']);
+});
+test('recallItem 帶入上次的類別與保存天數', () => {
+  const items = [{ name: '鮮奶', category: '乳製品', location: '冷藏', quantity: 2, tempC: 4, openDays: 5, purchase: '2026-10-01', expiry: '2026-10-08', createdAt: 1 }];
+  const r = HK.recallItem(items, ' 鮮奶 ', '2026-10-31');
+  assert.strictEqual(r.category, '乳製品'); assert.strictEqual(r.shelfDays, 7); assert.strictEqual(r.expiry, '2026-11-07'); assert.strictEqual(r.openDays, 5);
+  assert.strictEqual(HK.recallItem(items, '沒有', '2026-10-31'), null);
+  assert.strictEqual(HK.recallItem([{ name: 'x', category: '其他', location: '常溫', purchase: '2026-10-10', expiry: '2026-10-01' }], 'x', '2026-10-31').expiry, null);
+});

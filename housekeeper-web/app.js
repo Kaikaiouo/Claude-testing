@@ -231,10 +231,22 @@
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
     $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : ''; $('fOpenDays').value = item && item.openDays ? item.openDays : '';
     if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; }
+    $('recallMsg').hidden = true; const dl = $('nameList'); dl.textContent = ''; for (const n of HK.knownNames(state.items)) dl.append(new Option(n, n));
     $('fCat').onchange(); syncOpened();
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
     $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
   }
+  // 輸入已用過的名稱:帶入上次的類別/位置/保存天數(只在新增、且到期日還沒填時)
+  $('fName').addEventListener('change', () => {
+    if (editing) return;
+    const r = HK.recallItem(state.items, $('fName').value, today()); if (!r) return;
+    $('fCat').value = r.category; $('fLoc').value = r.location; $('fTemp').value = r.tempC; $('fCat').onchange();
+    if (r.openDays && !$('fOpenDays').value) $('fOpenDays').value = r.openDays;
+    const m = $('recallMsg');
+    if (r.expiry && !$('fExpiry').value) { $('fExpiry').value = r.expiry; $('fEst').checked = true; m.textContent = `已依上次帶入(保存約 ${r.shelfDays} 天,標為估算),請對照包裝確認`; }
+    else m.textContent = '已依上次帶入類別與位置';
+    m.hidden = false; syncOpened();
+  });
   function syncOpened() {
     const row = $('openedRow'), b = $('fOpen'), m = $('openedMsg');
     const it = editing, od = HK.okOpenDays($('fOpenDays').value), n = it && HK.openedDays(it.category, it.location, od); row.hidden = !it || it.done || !(it.openedAt || n);

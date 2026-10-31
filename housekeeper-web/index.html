@@ -160,7 +160,7 @@
   <h2 id="formTitle">新增物品</h2>
   <div class="errs" id="formErrs"></div>
   <div class="field scanbox" id="scanBox" hidden><button type="button" id="scanBtn">📷 拍照/選圖辨識</button><input id="scanFile" type="file" accept="image/*" capture="environment" hidden><img id="scanThumb" alt="已選取的包裝照片預覽" hidden><div class="note" id="scanMsg" role="status" aria-live="polite">拍下包裝,由 Claude 讀出品名與有效日期(會使用你的 Claude 額度,結果請再確認)。</div></div>
-  <div class="field"><label for="fName">名稱</label><input id="fName" maxlength="40" placeholder="例如:鮮奶" autocomplete="off"></div>
+  <div class="field"><label for="fName">名稱</label><input id="fName" maxlength="40" placeholder="例如:鮮奶" autocomplete="off" list="nameList"><datalist id="nameList"></datalist><div class="note" id="recallMsg" hidden></div></div>
   <div class="two">
     <div class="field"><label for="fCat">類別</label><select id="fCat"></select></div>
     <div class="field"><label>數量</label><div class="qty"><button type="button" id="qMinus" aria-label="減少">−</button><input id="fQty" type="number" min="1" max="99" value="1" inputmode="numeric"><button type="button" id="qPlus" aria-label="增加">+</button></div></div>
