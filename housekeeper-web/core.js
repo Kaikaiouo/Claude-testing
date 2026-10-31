@@ -281,19 +281,23 @@
   function restoreItems(items, snapshots) { const m = new Map(snapshots.map(i => [i.id, i])); return items.map(i => m.get(i.id) || i); }
 
   // 常用名稱(含已處理的),最近新增的在前,去重(忽略大小寫與空白)
-  function knownNames(items, limit = 50) {
+  function knownNames(items, limit = 50, shopping = []) {
     const seen = new Set(), out = [];
-    for (const i of [...(items || [])].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))) {
+    const sh = (shopping || []).map(x => ({ name: x.name, createdAt: x.addedAt }));
+    for (const i of [...(items || []), ...sh].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))) {
       const k = String(i.name || '').replace(/\s+/g, '').toLowerCase(); if (!k || seen.has(k)) continue;
       seen.add(k); out.push(i.name); if (out.length >= limit) break;
     }
     return out;
   }
   // 依過去同名物品預填:類別、位置、溫度、開封天數,以及「上次從購買到期的天數」套到今天(標為估算)
-  function recallItem(items, name, today) {
+  function recallItem(items, name, today, shopping = []) {
     const k = s => String(s || '').replace(/\s+/g, '').toLowerCase(), n = k(name); if (!n) return null;
     const hit = [...(items || [])].filter(i => k(i.name) === n).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
-    if (!hit) return null;
+    if (!hit) {
+      const sh = (shopping || []).filter(x => k(x.name) === n).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))[0];
+      return sh ? { name: sh.name, category: sh.category, location: sh.location, quantity: sh.quantity || 1, tempC: '', openDays: '', shelfDays: null, expiry: null } : null;
+    }
     const span = daysLeft(hit.expiry, hit.purchase), ok = span !== null && span >= 1 && span <= 3650;
     return { name: hit.name, category: hit.category, location: hit.location, quantity: hit.quantity || 1, tempC: hit.tempC === null || hit.tempC === undefined ? '' : hit.tempC,
       openDays: hit.openDays || '', shelfDays: ok ? span : null, expiry: ok ? addDays(today, span) : null };

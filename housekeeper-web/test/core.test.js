@@ -299,3 +299,11 @@ test('recallItem 帶入上次的類別與保存天數', () => {
   assert.strictEqual(HK.recallItem(items, '沒有', '2026-10-31'), null);
   assert.strictEqual(HK.recallItem([{ name: 'x', category: '其他', location: '常溫', purchase: '2026-10-10', expiry: '2026-10-01' }], 'x', '2026-10-31').expiry, null);
 });
+
+test('knownNames / recallItem 也納入購物清單名稱', () => {
+  const shop = [{ name: '豆腐', category: '蔬菜', location: '冷藏', quantity: 2, addedAt: 10 }];
+  assert.deepStrictEqual(HK.knownNames([{ name: '鮮奶', createdAt: 1 }], 50, shop), ['豆腐', '鮮奶']);
+  const r = HK.recallItem([], '豆腐', '2026-10-31', shop);
+  assert.strictEqual(r.category, '蔬菜'); assert.strictEqual(r.quantity, 2); assert.strictEqual(r.expiry, null);
+  assert.strictEqual(HK.recallItem([], '豆腐', '2026-10-31'), null);
+});
