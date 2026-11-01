@@ -232,6 +232,7 @@
       };
       q.append(b);
     }
+    $('fCat').addEventListener('input', () => { catTouched = true; });
     $('fCat').onchange = () => { $('milkRow').hidden = $('fCat').value !== '乳製品'; };
   })();
 
@@ -239,8 +240,9 @@
   $('qMinus').onclick = () => { $('fQty').value = Math.max(1, (+$('fQty').value || 1) - 1); };
   $('qPlus').onclick = () => { $('fQty').value = Math.min(99, (+$('fQty').value || 1) + 1); };
 
+  let catTouched = false;
   function openForm(item, pre) {
-    editing = item; $('fSave').dataset.dupOk = ''; $('scanThumb').hidden = true; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
+    catTouched = false; editing = item; $('fSave').dataset.dupOk = ''; $('scanThumb').hidden = true; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
     $('fName').value = item ? item.name : ''; $('fCat').value = item ? item.category : HK.CATEGORIES[0]; $('fQty').value = item ? item.quantity : 1;
     $('fLoc').value = item ? item.location : '冷藏'; $('fTemp').value = item ? (item.tempC === null ? '' : item.tempC) : 4;
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
@@ -254,7 +256,12 @@
   // 輸入已用過的名稱:帶入上次的類別/位置/保存天數(只在新增、且到期日還沒填時)
   $('fName').addEventListener('change', () => {
     if (editing) return;
-    const r = HK.recallItem(state.items, $('fName').value, today(), state.shopping); if (!r) return;
+    const r = HK.recallItem(state.items, $('fName').value, today(), state.shopping);
+    if (!r) {
+      const g = !catTouched && HK.guessCategory($('fName').value); if (!g) return;
+      $('fCat').value = g.category; $('fLoc').value = g.location; $('fLoc').onchange && $('fLoc').onchange(); $('fCat').onchange();
+      const m0 = $('recallMsg'); m0.textContent = `依品名猜是「${g.category}」,放${g.location}(可自行修改)`; m0.hidden = false; syncOpened(); return;
+    }
     $('fCat').value = r.category; $('fLoc').value = r.location; $('fTemp').value = r.tempC; $('fCat').onchange();
     if (r.openDays && !$('fOpenDays').value) $('fOpenDays').value = r.openDays;
     const m = $('recallMsg');

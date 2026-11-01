@@ -349,3 +349,13 @@ test('expiringText / shoppingText', () => {
   const s = HK.shoppingText(l); assert.match(s, /^【購物清單】/); assert.match(s, /蔬菜\n□ 菠菜/); assert.match(s, /□ 蛋 ×2/); assert.doesNotMatch(s, /已買/);
   assert.equal(HK.shoppingText([]), '');
 });
+
+test('guessCategory 依品名猜類別', () => {
+  assert.deepEqual(HK.guessCategory('牛肉片'), { category: '肉類', location: '冷藏' });
+  assert.equal(HK.guessCategory('小黃瓜').category, '蔬菜');
+  assert.equal(HK.guessCategory('鮮奶油').category, '乳製品');
+  assert.equal(HK.guessCategory('感冒藥水').category, '藥品');
+  assert.equal(HK.guessCategory('洗面乳').category, '保養品');
+  assert.equal(HK.guessCategory('烏龍茶').category, '飲料');
+  assert.equal(HK.guessCategory('  '), null); assert.equal(HK.guessCategory('xyz'), null); assert.equal(HK.guessCategory(null), null);
+});

@@ -334,6 +334,24 @@
       openDays: hit.openDays || '', shelfDays: ok ? span : null, expiry: ok ? addDays(today, span) : null };
   }
 
+  // 依品名關鍵字猜類別與常見存放位置(新增物品時的建議,使用者可改)。找不到回傳 null。
+  const NAME_HINTS = [
+    ['藥品', '藥箱', ['藥', '感冒', '止痛', '維他命', '益生菌', '眼藥', '消炎', '貼布', '口罩']],
+    ['保養品', '櫃子', ['洗面乳', '乳液', '面膜', '精華', '防曬', '化妝水', '卸妝', '護手霜', '洗髮', '沐浴', '牙膏']],
+    ['日用品', '櫃子', ['衛生紙', '洗衣', '洗碗', '洗潔', '電池', '垃圾袋', '漂白', '柔軟精']],
+    ['乳製品', '冷藏', ['牛奶', '鮮奶', '優格', '優酪', '起司', '乳酪', '奶油', '鮮奶油', '保久乳', '布丁']],
+    ['肉類', '冷藏', ['雞', '豬', '牛', '羊', '鴨', '肉', '排骨', '火腿', '香腸', '培根', '魚', '蝦', '蟹', '花枝', '透抽', '蛤', '海鮮', '鮭']],
+    ['水果', '冷藏', ['蘋果', '香蕉', '葡萄', '芭樂', '柳丁', '橘', '柑', '西瓜', '木瓜', '芒果', '鳳梨', '草莓', '藍莓', '奇異果', '檸檬', '梨', '桃', '李', '柚', '荔枝', '水果']],
+    ['蔬菜', '冷藏', ['菜', '蔥', '蒜', '薑', '菇', '蘿蔔', '番茄', '蕃茄', '黃瓜', '小黃瓜', '玉米', '地瓜', '馬鈴薯', '洋蔥', '高麗', '花椰', '青椒', '茄子', '豆芽', '南瓜', '絲瓜', '豆腐']],
+    ['飲料', '常溫', ['茶', '咖啡', '汽水', '可樂', '果汁', '豆漿', '氣泡水', '礦泉水', '運動飲料', '啤酒', '酒']],
+    ['調味料', '常溫', ['醬油', '醋', '鹽', '糖', '油', '醬', '胡椒', '味噌', '味醂', '麻油', '香料', '咖哩', '高湯']],
+  ];
+  function guessCategory(name) {
+    const n = String(name || '').replace(/\s+/g, ''); if (!n) return null;
+    for (const [category, location, words] of NAME_HINTS) if (words.some(w => n.includes(w))) return { category, location };
+    return null;
+  }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -341,7 +359,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
