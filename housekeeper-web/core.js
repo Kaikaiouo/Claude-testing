@@ -218,6 +218,23 @@
     return { name: s.name, category: s.category, location: s.location, quantity: s.quantity, purchase: today, expiry: r.date, estimated: true, tempC: l && l.tempC !== null ? l.tempC : '' };
   }
 
+  // ---- 文字分享:快到期清單、購物清單(可貼到 LINE / 備忘錄)----
+  const STATUS_TAG = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
+  function expiringText(items, today, days = 7) {
+    const rows = items.filter(i => !i.done && daysLeft(i.expiry, today) !== null && daysLeft(i.expiry, today) <= days)
+      .sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : a.name.localeCompare(b.name)));
+    if (!rows.length) return '';
+    const lines = rows.map(i => { const d = daysLeft(i.expiry, today), w = d < 0 ? `過期 ${-d} 天` : d === 0 ? '今天到期' : `${d} 天後到期`;
+      return `・${i.name}${i.quantity > 1 ? ' ×' + i.quantity : ''}(${i.location},${i.expiry}${i.estimated ? ' 估算' : ''},${w})`; });
+    return `【${today} 快到期清單】\n${lines.join('\n')}`;
+  }
+  function shoppingText(list) {
+    const todo = (list || []).filter(x => !x.bought); if (!todo.length) return '';
+    const out = ['【購物清單】'];
+    for (const g of groupShopping(todo)) { out.push(g.category); for (const x of g.items) out.push(`□ ${x.name}${x.quantity > 1 ? ' ×' + x.quantity : ''}`); }
+    return out.join('\n');
+  }
+
   // ---- JSON 備份:匯出/匯入,匯入時逐筆驗證,壞資料略過並回報 ----
   function exportBackup(state, now = Date.now()) {
     return JSON.stringify({ app: 'housekeeper', version: 1, exportedAt: now, settings: state.settings, items: state.items, shopping: state.shopping || [] }, null, 2);
@@ -324,7 +341,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, findDuplicate, knownNames, recallItem, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

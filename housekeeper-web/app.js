@@ -97,7 +97,7 @@
     // 提醒橫幅:已過期,或在「提醒天數」內
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
     const bn = $('banner'); bn.textContent = '';
-    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } bn.append(b); }
+    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const cp = el('button', 'ghost', '複製清單'); cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); bn.append(b); }
     // 位置篩選
     const chips = $('chips'); chips.textContent = '';
     for (const name of ['全部', ...HK.LOCATIONS.map(l => l.name)]) {
@@ -139,6 +139,15 @@
     box.append(el('span', '', text));
     if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => { box.hidden = true; action(); }; box.append(b); }
     box.hidden = false; snackTimer = setTimeout(() => { box.hidden = true; }, 6000);
+  }
+  // 複製文字到剪貼簿;沙盒擋住時改開一個文字框讓使用者手動複製
+  async function copyText(text, label) {
+    if (!text) { snack('沒有可複製的內容'); return; }
+    try { await navigator.clipboard.writeText(text); snack(`已複製${label},可貼到 LINE 或備忘錄`); return; } catch (e) { /* 改用手動複製 */ }
+    const box = $('snack'); clearTimeout(snackTimer); box.textContent = '';
+    const ta = el('textarea'); ta.readOnly = true; ta.value = text; ta.rows = Math.min(8, text.split('\n').length); ta.setAttribute('aria-label', label + '(請全選後複製)'); ta.style.width = 'min(360px,70vw)';
+    const ok = el('button', 'ghost', '關閉'); ok.type = 'button'; ok.onclick = () => { box.hidden = true; };
+    box.append(ta, ok); box.hidden = false; ta.focus(); ta.select();
   }
   function removeItem(item) {
     const idx = state.items.findIndex(i => i.id === item.id); if (idx < 0) return;
@@ -182,6 +191,7 @@
       }
       body.append(ul);
       }
+      if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { state.shopping = state.shopping.filter(x => !x.bought); commit(); showShop(); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
     $('shopWrap').hidden = false;
@@ -335,6 +345,7 @@
   };
   $('setWrap').addEventListener('click', e => { if (e.target === $('setWrap')) $('sClose').click(); });
   $('sSample').onclick = loadSample;
+  $('sCopy').onclick = () => { $('setWrap').hidden = true; copyText(HK.expiringText(state.items, today(), 7), '快到期清單'); };
   $('sExport').onclick = async () => {
     const d = Math.round(Number($('sDays').value)), h = +$('sHour').value;
     const ics = HK.toICS(state.items, { reminderDays: d >= 0 && d <= 60 ? d : 3, reminderHour: h }), msg = $('exportMsg');

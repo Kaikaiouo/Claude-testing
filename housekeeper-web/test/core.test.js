@@ -337,3 +337,15 @@ test('removeItem / reinsertItem 刪除後可原位復原', () => {
   assert.equal(HK.reinsertItem([a, b], b, 0).length, 2);
   assert.equal(HK.reinsertItem([], b, 9).length, 1);
 });
+
+test('expiringText / shoppingText', () => {
+  const T = '2026-11-01', mk = (name, off, extra = {}) => HK.makeItem(Object.assign({ name, category: '蔬菜', location: '冷藏', quantity: 1, expiry: HK.addDays(T, off), purchase: T }, extra), T).item;
+  const items = [mk('牛奶', 2, { quantity: 2 }), mk('青江菜', -1), mk('橄欖油', 100), mk('優格', 0)];
+  const done = Object.assign(mk('吃掉的', 1), { done: true });
+  const t = HK.expiringText([...items, done], T, 7).split('\n');
+  assert.equal(t.length, 4); assert.match(t[1], /青江菜.*過期 1 天/); assert.match(t[2], /優格.*今天到期/); assert.match(t[3], /牛奶 ×2.*2 天後/);
+  assert.equal(HK.expiringText([items[2]], T, 7), '');
+  let l = []; l = HK.addShopping(l, { name: '蛋', category: '其他', quantity: 2 }).list; l = HK.addShopping(l, { name: '菠菜', category: '蔬菜' }).list; l = HK.addShopping(l, { name: '已買', bought: true }).list;
+  const s = HK.shoppingText(l); assert.match(s, /^【購物清單】/); assert.match(s, /蔬菜\n□ 菠菜/); assert.match(s, /□ 蛋 ×2/); assert.doesNotMatch(s, /已買/);
+  assert.equal(HK.shoppingText([]), '');
+});
