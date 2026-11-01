@@ -363,5 +363,9 @@ test('guessCategory 依品名猜類別', () => {
   assert.equal(HK.guessCategory('豬油').category, '調味料');
   assert.deepEqual(HK.guessCategory('泡麵'), { category: '其他', location: '常溫' });
   assert.equal(HK.guessCategory('雞胸肉').category, '肉類');
+  assert.deepEqual(HK.guessCategory('水餃'), { category: '其他', location: '冷凍' });
+  assert.deepEqual(HK.guessCategory('冷凍雞胸肉'), { category: '肉類', location: '冷凍' });
+  assert.deepEqual(HK.guessCategory('板豆腐'), { category: '蔬菜', location: '冷藏', days: 5 });
+  assert.deepEqual(HK.guessCategory('餃子皮'), { category: '其他', location: '冷藏', days: 5 });
   assert.equal(HK.guessCategory('  '), null); assert.equal(HK.guessCategory('xyz'), null); assert.equal(HK.guessCategory(null), null);
 });
