@@ -260,7 +260,9 @@
     if (!r) {
       const g = !catTouched && HK.guessCategory($('fName').value); if (!g) return;
       $('fCat').value = g.category; $('fLoc').value = g.location; $('fLoc').onchange && $('fLoc').onchange(); $('fCat').onchange();
-      const m0 = $('recallMsg'); m0.textContent = `依品名猜是「${g.category}」,放${g.location}(可自行修改)`; m0.hidden = false; syncOpened(); return;
+      let extra = '';
+      if (g.days && !$('fExpiry').value) { $('fExpiry').value = HK.addDays($('fPurchase').value || today(), g.days); $('fEst').checked = true; extra = `,保存約 ${g.days} 天(估算,以包裝為準)`; }
+      const m0 = $('recallMsg'); m0.textContent = `依品名猜是「${g.category}」,放${g.location}${extra}(可自行修改)`; m0.hidden = false; syncOpened(); return;
     }
     $('fCat').value = r.category; $('fLoc').value = r.location; $('fTemp').value = r.tempC; $('fCat').onchange();
     if (r.openDays && !$('fOpenDays').value) $('fOpenDays').value = r.openDays;

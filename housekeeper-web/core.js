@@ -339,7 +339,8 @@
     // 容易被後面的字誤判的詞放最前面(例:雞蛋含「雞」、牛油果含「牛」、豬油含「豬」)
     ['水果', '冷藏', ['牛油果', '酪梨', '火龍果', '雞蛋果']],
     ['調味料', '常溫', ['豬油', '牛油', '雞粉', '雞精', '花生油', '沙拉油', '魚露', '蠔油', '蝦醬', '豆瓣', '牛肉醬', '雞湯塊']],
-    ['其他', '冷藏', ['蛋']],
+    ['其他', '冷藏', ['蛋'], 21],
+    ['其他', '常溫', ['麵包', '吐司', '土司', '貝果', '饅頭', '包子'], 4],
     ['其他', '常溫', ['泡麵', '餅乾', '零食', '罐頭', '洋芋片', '麥片', '糙米', '白米', '米粉', '冬粉', '義大利麵', '堅果', '海苔']],
     ['藥品', '藥箱', ['藥', '感冒', '止痛', '維他命', '益生菌', '眼藥', '消炎', '貼布', '口罩']],
     ['保養品', '櫃子', ['洗面乳', '乳液', '面膜', '精華', '防曬', '化妝水', '卸妝', '護手霜', '洗髮', '沐浴', '牙膏']],
@@ -353,7 +354,7 @@
   ];
   function guessCategory(name) {
     const n = String(name || '').replace(/\s+/g, ''); if (!n) return null;
-    for (const [category, location, words] of NAME_HINTS) if (words.some(w => n.includes(w))) return { category, location };
+    for (const [category, location, words, days] of NAME_HINTS) if (words.some(w => n.includes(w))) return days ? { category, location, days } : { category, location };
     return null;
   }
 
