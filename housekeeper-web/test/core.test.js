@@ -357,5 +357,10 @@ test('guessCategory 依品名猜類別', () => {
   assert.equal(HK.guessCategory('感冒藥水').category, '藥品');
   assert.equal(HK.guessCategory('洗面乳').category, '保養品');
   assert.equal(HK.guessCategory('烏龍茶').category, '飲料');
+  assert.deepEqual(HK.guessCategory('雞蛋'), { category: '其他', location: '冷藏' });
+  assert.equal(HK.guessCategory('牛油果').category, '水果');
+  assert.equal(HK.guessCategory('豬油').category, '調味料');
+  assert.deepEqual(HK.guessCategory('泡麵'), { category: '其他', location: '常溫' });
+  assert.equal(HK.guessCategory('雞胸肉').category, '肉類');
   assert.equal(HK.guessCategory('  '), null); assert.equal(HK.guessCategory('xyz'), null); assert.equal(HK.guessCategory(null), null);
 });
