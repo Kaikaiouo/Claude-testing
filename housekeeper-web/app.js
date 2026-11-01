@@ -249,7 +249,7 @@
     $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : ''; $('fOpenDays').value = item && item.openDays ? item.openDays : '';
     if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; }
     $('recallMsg').hidden = true; const dl = $('nameList'); dl.textContent = ''; for (const n of HK.knownNames(state.items, 50, state.shopping)) dl.append(new Option(n, n));
-    $('fCat').onchange(); syncOpened();
+    $('fCat').onchange(); syncOpened(); syncFreeze();
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
     $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
   }
@@ -278,6 +278,19 @@
     if (it.openedAt) { b.textContent = '復原開封'; m.textContent = `${it.openedAt} 開封`; }
     else { b.textContent = '已開封:縮短到期日'; m.textContent = `開封後約 ${n} 天內吃完${od ? '(你設定的天數)' : '(保守估計,以包裝為準)'}`; }
   }
+  function syncFreeze() {
+    const row = $('freezeRow'), it = editing, r = it && !it.done ? (it.locationBeforeFreeze ? { undo: true } : HK.freezeItem(it, today())) : null;
+    row.hidden = !r; if (!r) return;
+    $('fFreeze').textContent = r.undo ? '復原冷凍' : '移到冷凍保存';
+    $('freezeMsg').textContent = r.undo ? `原本放${it.locationBeforeFreeze}` : `冷凍約可放 ${r.days} 天(保守估計,以食材狀態為準)`;
+  }
+  $('fFreeze').onclick = () => {
+    const it = editing; if (!it) return;
+    if (it.locationBeforeFreeze) { Object.assign(it, HK.unfreezeItem(it)); closeForm(); commit(); return; }
+    const r = HK.freezeItem(it, today()); if (!r) return;
+    Object.assign(it, r.item); closeForm(); commit();
+    snack(`「${it.name}」移到冷凍,到期日改為 ${it.expiry}(估算)`, '復原', () => { Object.assign(it, HK.unfreezeItem(it)); commit(); });
+  };
   $('fOpenDays').oninput = syncOpened;
   $('fOpen').onclick = () => {
     const it = editing; if (!it) return;
@@ -333,7 +346,7 @@
       if (dup) { $('formErrs').textContent = `「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`; $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }
     }
     $('fSave').dataset.dupOk = '';
-    if (editing) { Object.assign(editing, r.item, { done: editing.done, doneAt: editing.doneAt, createdAt: editing.createdAt }); }
+    if (editing) { Object.assign(editing, r.item, { done: editing.done, doneAt: editing.doneAt, createdAt: editing.createdAt }); delete editing.locationBeforeFreeze; delete editing.expiryBeforeFreeze; delete editing.tempCBeforeFreeze; }
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
   };

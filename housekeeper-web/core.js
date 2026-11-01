@@ -79,6 +79,20 @@
     const r = Object.assign({}, item, { expiry: item.expiryBeforeOpen || item.expiry }); delete r.openedAt; delete r.expiryBeforeOpen; return r;
   }
 
+  // 移到冷凍:保守的冷凍保存天數(僅供估算)。已過期、已處理、已開封、已在冷凍或不適用的類別回傳 null
+  const FREEZE_DAYS = { 肉類: 90, 蔬菜: 120, 水果: 120, 乳製品: 30, 其他: 60 };
+  function freezeItem(item, today) {
+    const days = FREEZE_DAYS[item.category];
+    if (!days || item.done || item.openedAt || item.location === '冷凍' || daysLeft(item.expiry, today) < 0) return null;
+    const expiry = addDays(today, days);
+    return { days, item: Object.assign({}, item, { location: '冷凍', tempC: -18, expiryBeforeFreeze: item.expiry, locationBeforeFreeze: item.location, tempCBeforeFreeze: item.tempC, expiry: expiry > item.expiry ? expiry : item.expiry, estimated: true }) };
+  }
+  function unfreezeItem(item) {
+    if (!item.locationBeforeFreeze) return item;
+    const r = Object.assign({}, item, { location: item.locationBeforeFreeze, tempC: item.tempCBeforeFreeze === undefined ? null : item.tempCBeforeFreeze, expiry: item.expiryBeforeFreeze || item.expiry });
+    delete r.locationBeforeFreeze; delete r.expiryBeforeFreeze; delete r.tempCBeforeFreeze; return r;
+  }
+
   function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
   // 驗證並正規化表單資料;回傳 { item, errors }
@@ -371,7 +385,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

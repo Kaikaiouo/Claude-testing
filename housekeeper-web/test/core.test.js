@@ -369,3 +369,15 @@ test('guessCategory 依品名猜類別', () => {
   assert.deepEqual(HK.guessCategory('餃子皮'), { category: '其他', location: '冷藏', days: 5 });
   assert.equal(HK.guessCategory('  '), null); assert.equal(HK.guessCategory('xyz'), null); assert.equal(HK.guessCategory(null), null);
 });
+
+test('freezeItem:移到冷凍延長到期日、可還原;不適用的回傳 null', () => {
+  const it = HK.makeItem(form({ name: '雞胸肉', category: '肉類', expiry: '2026-10-31', tempC: 4 }), T).item;
+  const r = HK.freezeItem(it, T);
+  assert.equal(r.item.location, '冷凍'); assert.equal(r.item.tempC, -18); assert.equal(r.item.expiry, '2027-01-27'); assert.equal(r.item.estimated, true);
+  const back = HK.unfreezeItem(r.item);
+  assert.equal(back.location, '冷藏'); assert.equal(back.expiry, '2026-10-31'); assert.equal(back.tempC, 4); assert.equal(back.locationBeforeFreeze, undefined);
+  assert.equal(HK.freezeItem(Object.assign({}, it, { expiry: '2026-10-28' }), T), null);
+  assert.equal(HK.freezeItem(Object.assign({}, it, { location: '冷凍' }), T), null);
+  assert.equal(HK.freezeItem(Object.assign({}, it, { category: '飲料' }), T), null);
+  assert.equal(HK.freezeItem(Object.assign({}, it, { openedAt: T }), T), null);
+});
