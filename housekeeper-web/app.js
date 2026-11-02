@@ -389,6 +389,10 @@
     try { await saveFile('housekeeper-backup-' + today() + '.json', HK.exportBackup(state), 'application/json'); $('backupMsg').textContent = `已備份 ${state.items.length} 項物品。`; }
     catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
   };
+  $('sCsv').onclick = async () => {
+    try { await saveFile('housekeeper-items-' + today() + '.csv', HK.toCSV(state.items, today()), 'text/csv'); $('backupMsg').textContent = `已匯出 ${state.items.length} 項物品為 CSV(可用試算表開啟)。`; }
+    catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
+  };
   $('sRestore').onclick = () => $('sFile').click();
   $('sFile').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;

@@ -399,3 +399,17 @@ test('freezeSoon:只冷凍 2 天內到期且可冷凍者,changed 可用 restoreI
   assert.equal(r.changed.length, 1); assert.equal(r.items[0].location, '冷凍'); assert.equal(r.items[1], b); assert.equal(r.items[2], c);
   assert.deepEqual(HK.restoreItems(r.items, r.changed)[0], a);
 });
+
+test('toCSV:BOM、跳脫逗號與引號、公式注入防護、狀態與處理結果', () => {
+  const a = HK.makeItem(form({ name: '牛奶, "特濃"', expiry: '2026-10-28' }), T).item;
+  const b = HK.makeItem(form({ name: '=CMD()', expiry: '2026-12-01' }), T).item;
+  const c = Object.assign({}, HK.makeItem(form({ name: '蛋' }), T).item, { done: true, outcome: 'wasted' });
+  const csv = HK.toCSV([a, b, c], T);
+  assert.ok(csv.startsWith('﻿名稱,'));
+  const lines = csv.trim().split('\r\n');
+  assert.equal(lines.length, 4);
+  assert.ok(lines[1].startsWith('"牛奶, ""特濃""",乳製品,冷藏,1,'));
+  assert.ok(lines[1].includes(',-1,已過期,'));
+  assert.ok(lines[2].startsWith("'=CMD(),"));
+  assert.ok(lines[3].endsWith('已處理,,是,浪費') || lines[3].endsWith(',是,浪費'));
+});

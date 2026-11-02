@@ -259,6 +259,17 @@
     return out.join('\n');
   }
 
+  // ---- CSV 匯出(Excel/Google 試算表可開;加 BOM 避免中文亂碼;開頭為 = + - @ 的欄位加單引號防公式注入)----
+  function toCSV(items, today) {
+    const q = v => { let s = v == null ? '' : String(v); if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const rows = [['名稱', '類別', '位置', '數量', '購買日', '到期日', '剩餘天數', '狀態', '到期日為估算', '已處理', '處理結果']];
+    for (const i of items) {
+      const d = daysLeft(i.expiry, today);
+      rows.push([i.name, i.category, i.location, i.quantity, i.purchase || '', i.expiry || '', d === null ? '' : d, i.done ? '已處理' : (STATUS_TAG[status(d)] || ''), i.estimated ? '是' : '', i.done ? '是' : '', i.done ? (i.outcome === 'wasted' ? '浪費' : '用完') : '']);
+    }
+    return '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
+  }
+
   // ---- JSON 備份:匯出/匯入,匯入時逐筆驗證,壞資料略過並回報 ----
   function exportBackup(state, now = Date.now()) {
     return JSON.stringify({ app: 'housekeeper', version: 1, exportedAt: now, settings: state.settings, items: state.items, shopping: state.shopping || [] }, null, 2);
@@ -406,7 +417,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
