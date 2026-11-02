@@ -112,10 +112,10 @@
     if (!shown.length) {
       const li = el('li', 'empty');
       if (!state.items.length) {
-        li.append(el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
+        li.append(emptyArt('new'), el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
         const a = el('div', 'actions'), add = el('button', 'primary', '新增第一個物品'), sample = el('button', '', '載入範例看看');
         add.onclick = () => openForm(null); sample.onclick = loadSample; a.append(add, sample); li.append(a);
-      } else li.append(el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
+      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
       list.append(li);
     } else for (const i of shown) list.append(rowFor(i, 'active'));
     // 已處理
@@ -123,6 +123,20 @@
     const hl = $('histList'); hl.textContent = ''; for (const i of HK.sortByExpiry(done).reverse()) hl.append(rowFor(i, 'done'));
     $('sync').textContent = syncMsg;
     const left = state.shopping.filter(x => !x.bought).length; $('btnShop').textContent = left ? `購物清單 ${left}` : '購物清單';
+  }
+
+  // 空狀態插圖(內嵌 SVG,色彩跟隨 token)
+  function emptyArt(kind) {
+    const w = el('div', 'empty-art'); w.setAttribute('aria-hidden', 'true');
+    const check = kind === 'done';
+    w.innerHTML = '<svg viewBox="0 0 96 96" width="84" height="84" fill="none" stroke-linecap="round" stroke-linejoin="round">'
+      + '<rect x="22" y="10" width="52" height="76" rx="10" stroke="currentColor" stroke-width="3" opacity=".55"/>'
+      + '<path d="M22 40h52" stroke="currentColor" stroke-width="3" opacity=".35"/>'
+      + '<path d="M30 24v8" stroke="currentColor" stroke-width="3" opacity=".55"/>'
+      + (check ? '<circle cx="48" cy="63" r="12" stroke="var(--ok, #2f9e6b)" stroke-width="3.5"/><path d="M42 63l5 5 8-10" stroke="var(--ok, #2f9e6b)" stroke-width="3.5"/>'
+        : '<path d="M38 63h20M48 53v20" stroke="var(--accent, currentColor)" stroke-width="3.5"/>')
+      + '</svg>';
+    return w;
   }
 
   function loadSample() {
