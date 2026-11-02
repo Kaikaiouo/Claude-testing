@@ -381,3 +381,12 @@ test('freezeItem:移到冷凍延長到期日、可還原;不適用的回傳 null
   assert.equal(HK.freezeItem(Object.assign({}, it, { category: '飲料' }), T), null);
   assert.equal(HK.freezeItem(Object.assign({}, it, { openedAt: T }), T), null);
 });
+
+test('freezeSoon:只冷凍 2 天內到期且可冷凍者,changed 可用 restoreItems 還原', () => {
+  const a = HK.makeItem(form({ name: '雞胸肉', category: '肉類', expiry: '2026-11-01' }), T).item;
+  const b = HK.makeItem(form({ name: '牛奶', category: '飲料', expiry: '2026-11-01' }), T).item;
+  const c = HK.makeItem(form({ name: '豬肉', category: '肉類', expiry: '2026-12-30' }), T).item;
+  const r = HK.freezeSoon([a, b, c], '2026-10-31');
+  assert.equal(r.changed.length, 1); assert.equal(r.items[0].location, '冷凍'); assert.equal(r.items[1], b); assert.equal(r.items[2], c);
+  assert.deepEqual(HK.restoreItems(r.items, r.changed)[0], a);
+});

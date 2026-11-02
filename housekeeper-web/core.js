@@ -93,6 +93,16 @@
     delete r.locationBeforeFreeze; delete r.expiryBeforeFreeze; delete r.tempCBeforeFreeze; return r;
   }
 
+  // 一鍵冷凍:未過期、距今 within 天內到期且可冷凍的物品。回傳 { items, changed(原始快照) }
+  function freezeSoon(items, today, within = 2) {
+    const changed = [], out = items.map(i => {
+      if (i.done || daysLeft(i.expiry, today) > within) return i;
+      const r = freezeItem(i, today); if (!r) return i;
+      changed.push(i); return r.item;
+    });
+    return { items: out, changed };
+  }
+
   function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
   // 驗證並正規化表單資料;回傳 { item, errors }
@@ -385,7 +395,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
