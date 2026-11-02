@@ -59,7 +59,7 @@
   }
 
   function rowFor(item, mode) {
-    const days = HK.daysLeft(item.expiry, today()), li = el('li', 'row');
+    const days = HK.daysLeft(item.expiry, today()), li = el('li', 'row' + (mode === 'done' ? '' : ' s-' + HK.status(days)));
     li.append(mode === 'done' ? (() => { const b = el('div', 'badge ok'); b.append(el('b', '', '✓'), el('small', '', '已處理')); return b; })() : badge(days));
     const info = el('button', 'info'); info.type = 'button';
     info.append(el('div', 'nm', item.name + (item.quantity > 1 ? ` ×${item.quantity}` : '')));
