@@ -256,7 +256,7 @@
 
   let catTouched = false;
   function openForm(item, pre) {
-    catTouched = false; editing = item; $('fSave').dataset.dupOk = ''; $('scanThumb').hidden = true; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
+    catTouched = false; editing = item; $('fSave').dataset.dupOk = ''; $('fSave').dataset.dateOk = ''; $('scanThumb').hidden = true; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
     $('fName').value = item ? item.name : ''; $('fCat').value = item ? item.category : HK.CATEGORIES[0]; $('fQty').value = item ? item.quantity : 1;
     $('fLoc').value = item ? item.location : '冷藏'; $('fTemp').value = item ? (item.tempC === null ? '' : item.tempC) : 4;
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
@@ -355,6 +355,8 @@
   $('fSave').onclick = () => {
     const r = HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value, openDays: $('fOpenDays').value, openedAt: editing && editing.openedAt, expiryBeforeOpen: editing && editing.expiryBeforeOpen }, today(), editing ? editing.id : undefined);
     if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return; }
+    { const dw = HK.dateWarnings(r.item, today()), key = dw.join('|') + r.item.expiry;
+      if (dw.length && $('fSave').dataset.dateOk !== key) { $('formErrs').textContent = dw.join('、') + '。確定的話再按一次儲存。'; $('fSave').dataset.dateOk = key; return; } }
     if (!editing && $('fSave').dataset.dupOk !== r.item.name + '|' + r.item.location) {
       const dup = HK.findDuplicate(state.items, r.item.name, r.item.location);
       if (dup) { $('formErrs').textContent = `「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`; $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }

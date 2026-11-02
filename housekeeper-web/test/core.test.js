@@ -413,3 +413,11 @@ test('toCSV:BOM、跳脫逗號與引號、公式注入防護、狀態與處理�
   assert.ok(lines[2].startsWith("'=CMD(),"));
   assert.ok(lines[3].endsWith('已處理,,是,浪費') || lines[3].endsWith(',是,浪費'));
 });
+
+test('dateWarnings:早於購買日、過期一年多、5 年後會提醒;正常日期無提醒', () => {
+  const mk = f => HK.makeItem(form(f), T).item;
+  assert.deepEqual(HK.dateWarnings(mk({ expiry: '2026-12-01' }), T), []);
+  assert.ok(HK.dateWarnings(mk({ expiry: '2026-10-01', purchase: '2026-10-20' }), T).includes('到期日早於購買日'));
+  assert.equal(HK.dateWarnings(mk({ expiry: '2025-01-01', purchase: '2024-12-01' }), T).length, 1);
+  assert.equal(HK.dateWarnings(mk({ expiry: '2036-01-01' }), T).length, 1);
+});

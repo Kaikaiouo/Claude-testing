@@ -320,6 +320,17 @@
   }
 
   // 新增時偵測重複:同名(忽略空白與大小寫)、未處理、同位置的物品
+  // 日期合理性(軟提醒,不擋存檔):到期日早於購買日、已過期超過一年(可能年份打錯)、距今超過 5 年
+  function dateWarnings(item, today) {
+    const w = [], e = parseDay(item.expiry), p = parseDay(item.purchase), t = parseDay(today);
+    if (e === null || t === null) return w;
+    const d = Math.round((e - t) / 86400000);
+    if (p !== null && e < p) w.push('到期日早於購買日');
+    if (d < -365) w.push('到期日已是一年多前,年份是否打錯');
+    if (d > 365 * 5) w.push('到期日超過 5 年後,年份是否打錯');
+    return w;
+  }
+
   function findDuplicate(items, name, location) {
     const k = s => String(s || '').replace(/\s+/g, '').toLowerCase(), n = k(name);
     if (!n) return null;
@@ -417,7 +428,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, dateWarnings, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
