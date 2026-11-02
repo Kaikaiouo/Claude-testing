@@ -351,7 +351,16 @@ test('expiringText / shoppingText', () => {
 });
 
 test('guessCategory 依品名猜類別', () => {
-  assert.deepEqual(HK.guessCategory('牛肉片'), { category: '肉類', location: '冷藏' });
+  assert.deepEqual(HK.guessCategory('牛肉片'), { category: '肉類', location: '冷藏', days: 3 });
+  assert.equal(HK.guessCategory('鮭魚').days, 2);
+  assert.equal(HK.guessCategory('鮮奶').days, 7);
+  assert.equal(HK.guessCategory('保久乳').days, undefined);
+  assert.equal(HK.guessCategory('高麗菜').days, 10);
+  assert.equal(HK.guessCategory('青江菜').days, 4);
+  assert.equal(HK.guessCategory('草莓').days, 5);
+  assert.equal(HK.guessCategory('韓式泡菜').days, 30);
+  assert.equal(HK.guessCategory('蛋糕').days, 3);
+  assert.equal(HK.guessCategory('牛奶').category, '乳製品');
   assert.equal(HK.guessCategory('小黃瓜').category, '蔬菜');
   assert.equal(HK.guessCategory('鮮奶油').category, '乳製品');
   assert.equal(HK.guessCategory('感冒藥水').category, '藥品');
