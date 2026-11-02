@@ -270,6 +270,42 @@
     return '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
   }
 
+  // ---- CSV 匯入:讀回 toCSV 匯出的格式(或自製試算表,至少要有「名稱」「到期日」欄);逐列驗證、與現有同名同位置同到期日者略過 ----
+  function parseCSVRows(text) {
+    const rows = []; let row = [], cur = '', inQ = false;
+    const s = String(text).replace(/^﻿/, '');
+    for (let k = 0; k < s.length; k++) {
+      const c = s[k];
+      if (inQ) { if (c === '"') { if (s[k + 1] === '"') { cur += '"'; k++; } else inQ = false; } else cur += c; }
+      else if (c === '"') inQ = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && s[k + 1] === '\n') k++; row.push(cur); cur = ''; if (row.some(x => x !== '')) rows.push(row); row = []; }
+      else cur += c;
+    }
+    row.push(cur); if (row.some(x => x !== '')) rows.push(row);
+    return rows;
+  }
+  function parseCSV(text, today, existing = []) {
+    const rows = parseCSVRows(text);
+    if (!rows.length) return { ok: false, error: '檔案是空的', items: [], skipped: 0, duplicates: 0 };
+    const head = rows[0].map(h => h.trim()), col = n => head.indexOf(n);
+    if (col('名稱') < 0 || col('到期日') < 0) return { ok: false, error: '這不像是 housekeeper 的 CSV(需要「名稱」和「到期日」欄)', items: [], skipped: 0, duplicates: 0 };
+    const get = (r, n) => { const k = col(n); return k < 0 ? '' : String(r[k] || '').replace(/^'(?=[=+\-@\t\r])/, '').trim(); };
+    const seen = new Set(existing.filter(i => !i.done).map(i => [i.name, i.location, i.expiry].join('|')));
+    const items = []; let skipped = 0, duplicates = 0;
+    for (const r of rows.slice(1).slice(0, 2000)) {
+      const done = get(r, '已處理') === '是';
+      const res = makeItem({ name: get(r, '名稱'), category: get(r, '類別'), location: get(r, '位置'), quantity: get(r, '數量') || 1, purchase: get(r, '購買日') || today, expiry: get(r, '到期日'), estimated: get(r, '到期日為估算') === '是' }, today);
+      if (!res.item) { skipped++; continue; }
+      const key = [res.item.name, res.item.location, res.item.expiry].join('|');
+      if (!done && seen.has(key)) { duplicates++; continue; }
+      seen.add(key);
+      if (done) { res.item.done = true; res.item.doneAt = Date.now(); res.item.outcome = get(r, '處理結果') === '浪費' ? 'wasted' : 'used'; }
+      items.push(res.item);
+    }
+    return { ok: true, items, skipped, duplicates };
+  }
+
   // ---- JSON 備份:匯出/匯入,匯入時逐筆驗證,壞資料略過並回報 ----
   function exportBackup(state, now = Date.now()) {
     return JSON.stringify({ app: 'housekeeper', version: 1, exportedAt: now, settings: state.settings, items: state.items, shopping: state.shopping || [] }, null, 2);
@@ -428,7 +464,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, dateWarnings, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

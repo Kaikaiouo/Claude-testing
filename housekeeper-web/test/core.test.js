@@ -421,3 +421,23 @@ test('dateWarnings:早於購買日、過期一年多、5 年後會提醒;正常�
   assert.equal(HK.dateWarnings(mk({ expiry: '2025-01-01', purchase: '2024-12-01' }), T).length, 1);
   assert.equal(HK.dateWarnings(mk({ expiry: '2036-01-01' }), T).length, 1);
 });
+
+test('parseCSV:可讀回 toCSV 匯出(含逗號引號、公式防護、已處理)、略過壞列與重複', () => {
+  const a = HK.makeItem(form({ name: '牛奶, "特濃"', expiry: '2026-12-01', quantity: 2 }), T).item;
+  const b = HK.makeItem(form({ name: '=CMD()', expiry: '2026-12-05' }), T).item;
+  const c = Object.assign({}, HK.makeItem(form({ name: '蛋', expiry: '2026-11-20' }), T).item, { done: true, outcome: 'wasted' });
+  const csv = HK.toCSV([a, b, c], T) + '壞列,,,1,,not-a-date\r\n';
+  const r = HK.parseCSV(csv, T, [a]);
+  assert.equal(r.ok, true);
+  assert.equal(r.skipped, 1);
+  assert.equal(r.duplicates, 1);
+  assert.equal(r.items.length, 2);
+  assert.equal(r.items[0].name, '=CMD()');
+  assert.equal(r.items[1].done, true);
+  assert.equal(r.items[1].outcome, 'wasted');
+  const r2 = HK.parseCSV(csv, T, []);
+  assert.equal(r2.items[0].name, '牛奶, "特濃"');
+  assert.equal(r2.items[0].quantity, 2);
+  assert.equal(HK.parseCSV('a,b\r\n1,2', T).ok, false);
+  assert.equal(HK.parseCSV('', T).ok, false);
+});

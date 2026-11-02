@@ -409,6 +409,16 @@
     try { await saveFile('housekeeper-items-' + today() + '.csv', HK.toCSV(state.items, today()), 'text/csv'); $('backupMsg').textContent = `已匯出 ${state.items.length} 項物品為 CSV(可用試算表開啟)。`; }
     catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
   };
+  $('sCsvIn').onclick = () => $('sCsvFile').click();
+  $('sCsvFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const msg = $('backupMsg');
+    if (f.size > 5e6) { msg.textContent = '檔案太大,不像是物品清單。'; return; }
+    const r = HK.parseCSV(await f.text(), today(), state.items);
+    if (!r.ok) { msg.textContent = r.error + '。'; return; }
+    state.items = HK.mergeItems(state.items, r.items); commit();
+    msg.textContent = `已匯入 ${r.items.length} 項物品` + (r.duplicates ? `,${r.duplicates} 項與現有清單重複而略過` : '') + (r.skipped ? `,${r.skipped} 列資料無效(需有名稱與有效到期日)` : '') + '。';
+  };
   $('sRestore').onclick = () => $('sFile').click();
   $('sFile').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
