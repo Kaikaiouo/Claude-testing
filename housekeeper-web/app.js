@@ -271,7 +271,7 @@
     for (const n of fn) { const b = el('button', '', n); b.type = 'button'; b.onclick = () => { $('fName').value = n; $('fName').dispatchEvent(new Event('change')); }; fq.append(b); } fq.hidden = !fn.length;
     $('fCat').onchange(); syncOpened(); syncFreeze();
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
-    $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
+    $('bulkFromForm').hidden = !!item || !!pre; $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
   }
   // 輸入已用過的名稱:帶入上次的類別/位置/保存天數(只在新增、且到期日還沒填時)
   $('fName').addEventListener('change', () => {
@@ -353,6 +353,19 @@
     finally { scanCtl = null; btn.textContent = '📷 拍照/選圖辨識'; }
   };
 
+  // 一次新增多項
+  const bulkSync = () => { const r = HK.parseBulk($('bulkText').value, today()); $('bulkPrev').textContent = r.items.length ? `將加入 ${r.items.length} 項:` + r.items.slice(0, 8).map(i => `${i.name}×${i.quantity}(${i.category}/${i.location})`).join('、') + (r.items.length > 8 ? '…' : '') + (r.skipped.length ? `;略過 ${r.skipped.length} 行無法辨識` : '') : ''; $('bulkSave').disabled = !r.items.length; };
+  $('bulkFromForm').onclick = () => { closeForm(); $('bulkOpen').onclick(); };
+  $('bulkOpen').onclick = () => { $('bulkText').value = ''; bulkSync(); $('bulkWrap').hidden = false; setTimeout(() => $('bulkText').focus(), 50); };
+  $('bulkText').oninput = bulkSync;
+  $('bulkCancel').onclick = () => { $('bulkWrap').hidden = true; };
+  $('bulkWrap').addEventListener('click', e => { if (e.target === $('bulkWrap')) $('bulkWrap').hidden = true; });
+  $('bulkSave').onclick = () => {
+    const r = HK.parseBulk($('bulkText').value, today()); if (!r.items.length) return;
+    state.items.push(...r.items); $('bulkWrap').hidden = true; commit();
+    const ids = new Set(r.items.map(i => i.id));
+    snack(`已加入 ${r.items.length} 項(到期日為估算)`, '復原', () => { state.items = state.items.filter(i => !ids.has(i.id)); commit(); });
+  };
   const closeForm = () => { $('formWrap').hidden = true; editing = null; shopFrom = null; };
   $('fab').onclick = () => openForm(null);
   $('addWide').onclick = () => openForm(null);
@@ -500,7 +513,7 @@
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; } });
   $('search').addEventListener('input', e => { query = e.target.value; render(); });
   window.__hk = { state: () => state, commit };
   render(); initCloud(); initScan();

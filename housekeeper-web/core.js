@@ -481,6 +481,29 @@
     return null;
   }
 
+  // 一次新增多項:每行(或以逗號、頓號分隔)一個品名,可加數量(「鮮奶 x2」「雞蛋 2盒」);
+  // 依品名猜類別/位置/保存天數,全部標為估算。同名會合併數量。回傳 { items, skipped }
+  function parseBulk(text, today) {
+    const parts = String(text || '').split(/[\n\r,，、;；]+/), map = new Map(), skipped = [];
+    for (let raw of parts) {
+      raw = raw.replace(/^[\s\-•*·●\d]+[.)、]\s*/, '').replace(/^[\s\-•*·●]+/, '').trim(); if (!raw) continue;
+      let qty = 1, name = raw, m;
+      if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; }
+      else if ((m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/))) { name = m[1]; qty = +m[2]; }
+      name = name.trim();
+      if (!name || name.length > 40 || !(qty >= 1 && qty <= 99)) { skipped.push(raw); continue; }
+      const key = name.replace(/\s+/g, '').toLowerCase(), prev = map.get(key);
+      if (prev) { prev.quantity = Math.min(99, prev.quantity + qty); continue; }
+      const g = guessCategory(name) || { category: '其他', location: '冷藏' };
+      const loc = LOCATIONS.find(l => l.name === g.location);
+      const exp = g.days ? addDays(today, g.days) : suggestExpiry(g.category, g.location, today).date;
+      const r = makeItem({ name, category: g.category, location: g.location, quantity: qty, purchase: today, expiry: exp, estimated: true, tempC: loc && loc.tempC !== null ? loc.tempC : '' }, today);
+      if (r.item) map.set(key, r.item); else skipped.push(raw);
+      if (map.size >= 50) break;
+    }
+    return { items: [...map.values()], skipped };
+  }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -488,7 +511,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

@@ -465,3 +465,20 @@ test('shopSuggestions:常買但庫存沒有、清單也沒待買者才建議', (
   assert.deepStrictEqual(HK.shopSuggestions(items, [{ name: '牛奶', bought: false }]), ['雞蛋']);
   assert.deepStrictEqual(HK.shopSuggestions(items, [{ name: '牛奶', bought: true }]).sort(), ['牛奶', '雞蛋']);
 });
+
+test('parseBulk:多行/逗號、數量寫法、同名合併、猜類別並標估算', () => {
+  const r = HK.parseBulk('鮮奶 x2\n- 雞蛋 1盒\n青江菜，豆腐、鮮奶\n\n洗面乳 ×3', T);
+  const by = n => r.items.find(i => i.name === n);
+  assert.equal(r.items.length, 5);
+  assert.equal(by('鮮奶').quantity, 3);
+  assert.equal(by('雞蛋').quantity, 1);
+  assert.equal(by('洗面乳').quantity, 3);
+  assert.equal(by('鮮奶').expiry, HK.addDays(T, 7));
+  assert.equal(by('雞蛋').expiry, HK.addDays(T, 21));
+  assert.equal(by('豆腐').category, '蔬菜');
+  assert.ok(r.items.every(i => i.estimated && i.purchase === T));
+  const u = HK.parseBulk('神祕東西', T).items[0];
+  assert.equal(u.category, '其他');
+  assert.equal(HK.parseBulk('', T).items.length, 0);
+  assert.equal(HK.parseBulk('牛奶 x500', T).skipped.length, 1);
+});
