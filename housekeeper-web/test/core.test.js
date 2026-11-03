@@ -449,3 +449,11 @@ test('backupDue:物品太少不提醒;超過 30 天才提醒;以備份日優先�
   assert.equal(HK.backupDue('2026-01-01', '2020-01-01', 5, HK.addDays('2026-01-01', 30)), true);
   assert.equal(HK.backupDue(null, null, 9, T), false);
 });
+
+test('frequentNames 依次數排序、需出現至少 2 次、忽略空白大小寫', () => {
+  const mk = (name, createdAt) => ({ name, createdAt });
+  const items = [mk('鮮奶', 1), mk('雞蛋', 2), mk('鮮 奶', 5), mk('雞蛋', 6), mk('鮮奶', 7), mk('優格', 9), mk('', 3)];
+  assert.deepStrictEqual(HK.frequentNames(items), ['鮮奶', '雞蛋']);
+  assert.deepStrictEqual(HK.frequentNames(items, 1), ['鮮奶']);
+  assert.deepStrictEqual(HK.frequentNames([], 6), []);
+});
