@@ -483,11 +483,21 @@
 
   // 一次新增多項:每行(或以逗號、頓號分隔)一個品名,可加數量(「鮮奶 x2」「雞蛋 2盒」);
   // 依品名猜類別/位置/保存天數,全部標為估算。同名會合併數量。回傳 { items, skipped }
+  // 「11/20」「11月20日」「2026-11-20」→ YYYY-MM-DD;沒寫年份時取今天起 30 天前以後的最近一次
+  function bulkDate(y, mo, d, today) {
+    const tt = parseDay(today); if (tt === null) return null;
+    if (y) { const s = `${y}-${pad(+mo)}-${pad(+d)}`; return parseDay(s) !== null ? s : null; }
+    const yr = new Date(tt).getUTCFullYear();
+    for (const yy of [yr, yr + 1]) { const s = `${yy}-${pad(+mo)}-${pad(+d)}`, t = parseDay(s); if (t !== null && t >= tt - 30 * 86400000) return s; }
+    return null;
+  }
   function parseBulk(text, today) {
     const parts = String(text || '').split(/[\n\r,，、;；]+/), map = new Map(), skipped = [];
     for (let raw of parts) {
       raw = raw.replace(/^[\s\-•*·●\d]+[.)、]\s*/, '').replace(/^[\s\-•*·●]+/, '').trim(); if (!raw) continue;
-      let qty = 1, name = raw, m;
+      let qty = 1, name = raw, m, given = null;
+      const dm = name.match(/^(.*?)\s*(?:到期|exp\.?)?\s*(?:(\d{4})[-\/.])?(\d{1,2})[-\/.月](\d{1,2})日?$/i);
+      if (dm && dm[1].trim()) { const d = bulkDate(dm[2], dm[3], dm[4], today); if (d) { given = d; name = dm[1]; } }
       if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; }
       else if ((m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/))) { name = m[1]; qty = +m[2]; }
       name = name.trim();
@@ -496,8 +506,8 @@
       if (prev) { prev.quantity = Math.min(99, prev.quantity + qty); continue; }
       const g = guessCategory(name) || { category: '其他', location: '冷藏' };
       const loc = LOCATIONS.find(l => l.name === g.location);
-      const exp = g.days ? addDays(today, g.days) : suggestExpiry(g.category, g.location, today).date;
-      const r = makeItem({ name, category: g.category, location: g.location, quantity: qty, purchase: today, expiry: exp, estimated: true, tempC: loc && loc.tempC !== null ? loc.tempC : '' }, today);
+      const exp = given || (g.days ? addDays(today, g.days) : suggestExpiry(g.category, g.location, today).date);
+      const r = makeItem({ name, category: g.category, location: g.location, quantity: qty, purchase: today, expiry: exp, estimated: !given, tempC: loc && loc.tempC !== null ? loc.tempC : '' }, today);
       if (r.item) map.set(key, r.item); else skipped.push(raw);
       if (map.size >= 50) break;
     }

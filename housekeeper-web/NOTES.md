@@ -62,8 +62,10 @@
 - 2026-11-03 約 14:30(UTC;台灣約 22:30):購物清單面板新增「常買品名」快選鈕(core.js 的 shopSuggestions:常買 ≥2 次、庫存沒有未處理同名物品、清單沒有待買同名項目者,最多 6 個;點一下加入清單)+ 測試。47 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 37,capabilities 沿用)。
 - 2026-11-03 約 20:00(UTC;台灣 11-04 約 04:00):新增「一次新增多項」(core.js 的 parseBulk + 測試:每行/逗號一個品名、支援 x2、2盒 數量寫法、同名合併、依品名猜類別與保存天數並標估算;介面為對話框含即時預覽,桌機側欄與手機新增表單頂端都有入口,可復原)。順手移除誤提交的 undefined/ 截圖資料夾。48 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 38,capabilities 沿用)。
 
+- 2026-11-03 約 22:30(UTC;台灣 11-04 約 06:30):「一次新增多項」支援行尾附到期日(core.js 的 bulkDate + parseBulk 測試:11/20、11月20日、2027-01-05、到期11/20;沒寫年份取 30 天前以後最近一次;有給日期者不標估算,可與 x2 並用)。對話框說明與 placeholder 同步更新。49 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 39,capabilities 沿用)。
+
 ## 給下次的筆記
-- page.html 結尾註解現為 v38,下次改 v39。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項尚不支援「附購買日/到期日」語法,可作為後續擴充。
+- page.html 結尾註解現為 v39,下次改 v40。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,尚不支援購買日/存放位置語法;邊角:「牛奶 13/45」這類非日期會被當成數量解析。
 - 截圖腳本的 TMPDIR 在這環境是空的,請用 scratchpad 路徑;#fab 在 file:// 下 offsetParent 為 null 但 click() 可用。
 - 視覺:新增 token --glass/--card-line/--ring/--elev1/2/--bgfx(淺深色皆有)。字型在沙盒截圖是 fallback,線上為 Noto Sans TC/Zen Maru。可再做:空狀態插圖、統計圖表配色微調、購物清單面板質感。
 - 截圖腳本別用 heredoc 前先 cat > $TMPDIR(會卡住);playwright 在 /opt/npm-tools/node_modules,用 NODE_PATH 指過去。CSV 已可匯入(匯入的物品一律產生新 id;完整備份仍以 JSON 為準,CSV 不含開封/備註等欄位)。

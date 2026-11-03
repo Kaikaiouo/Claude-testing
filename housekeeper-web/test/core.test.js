@@ -482,3 +482,16 @@ test('parseBulk:多行/逗號、數量寫法、同名合併、猜類別並標估
   assert.equal(HK.parseBulk('', T).items.length, 0);
   assert.equal(HK.parseBulk('牛奶 x500', T).skipped.length, 1);
 });
+
+test('parseBulk:支援附到期日(11/20、11月20日、2027-01-05、到期11/20),不標估算', () => {
+  const t = '2026-11-03';
+  const r = HK.parseBulk('優格 x2 11/20\n豆腐 到期11月8日\n罐頭 2027-01-05\n牛奶 1/2\n青江菜', t);
+  const by = n => r.items.find(i => i.name === n);
+  assert.equal(by('優格').expiry, '2026-11-20'); assert.equal(by('優格').quantity, 2); assert.equal(by('優格').estimated, false);
+  assert.equal(by('豆腐').expiry, '2026-11-08');
+  assert.equal(by('罐頭').expiry, '2027-01-05');
+  assert.equal(by('牛奶').expiry, '2027-01-02');
+  assert.equal(by('青江菜').estimated, true);
+  assert.equal(HK.parseBulk('鮮奶 10/20', t).items[0].expiry, '2026-10-20');
+  assert.equal(HK.parseBulk('鮮奶 10/01', t).items[0].expiry, '2027-10-01');
+});
