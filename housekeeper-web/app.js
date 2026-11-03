@@ -184,6 +184,9 @@
     $('snack').hidden = true;
     const body = $('shopBody'); body.textContent = '';
     const list = HK.sortShopping(state.shopping);
+    const sq = $('shopQuick'); sq.textContent = ''; const sg = HK.shopSuggestions(state.items, state.shopping);
+    sq.hidden = !sg.length;
+    for (const n of sg) { const b = el('button', '', '+ ' + n); b.type = 'button'; b.onclick = () => { addToShopping({ name: n, quantity: 1 }); showShop(); }; sq.append(b); }
     if (!list.length) body.append(el('p', 'note', '清單是空的。吃完東西時按「加入購物清單」,或在下面直接輸入要買的東西。'));
     else {
       for (const g of HK.groupShopping(state.shopping)) {

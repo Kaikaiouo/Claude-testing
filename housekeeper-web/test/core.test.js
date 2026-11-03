@@ -457,3 +457,11 @@ test('frequentNames 依次數排序、需出現至少 2 次、忽略空白大小
   assert.deepStrictEqual(HK.frequentNames(items, 1), ['鮮奶']);
   assert.deepStrictEqual(HK.frequentNames([], 6), []);
 });
+
+test('shopSuggestions:常買但庫存沒有、清單也沒待買者才建議', () => {
+  const mk = (name, done) => ({ name, done: !!done, createdAt: 1 });
+  const items = [mk('牛奶', true), mk('牛奶', true), mk('雞蛋', true), mk('雞蛋', true), mk('吐司', true), mk('吐司', false), mk('吐司', true), mk('豆腐', true)];
+  assert.deepStrictEqual(HK.shopSuggestions(items, []).sort(), ['牛奶', '雞蛋']);
+  assert.deepStrictEqual(HK.shopSuggestions(items, [{ name: '牛奶', bought: false }]), ['雞蛋']);
+  assert.deepStrictEqual(HK.shopSuggestions(items, [{ name: '牛奶', bought: true }]).sort(), ['牛奶', '雞蛋']);
+});

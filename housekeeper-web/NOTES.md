@@ -59,6 +59,8 @@
 - 2026-11-03 約 03:00(UTC;台灣約 11:00):新增備份提醒(core.js 的 backupDue + 測試:物品 ≥5 項且距上次備份/首次使用超過 30 天,頂部顯示「現在備份 / 稍後再說」橫幅;備份日與起算日存 localStorage,不可用時安靜略過)。45 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 35,capabilities 沿用)。
 - 2026-11-03 約 12:00(UTC;台灣約 20:00):新增表單的名稱欄下方出現「常買品名」快選鈕(core.js 的 frequentNames:出現 ≥2 次、依次數排序、最多 6 個;點一下帶入名稱並觸發記憶預填;編輯時不顯示)+ 測試。46 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 36,capabilities 沿用)。
 
+- 2026-11-03 約 14:30(UTC;台灣約 22:30):購物清單面板新增「常買品名」快選鈕(core.js 的 shopSuggestions:常買 ≥2 次、庫存沒有未處理同名物品、清單沒有待買同名項目者,最多 6 個;點一下加入清單)+ 測試。47 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 37,capabilities 沿用)。
+
 ## 給下次的筆記
 - 截圖腳本的 TMPDIR 在這環境是空的,請用 scratchpad 路徑;#fab 在 file:// 下 offsetParent 為 null 但 click() 可用。
 - 視覺:新增 token --glass/--card-line/--ring/--elev1/2/--bgfx(淺深色皆有)。字型在沙盒截圖是 fallback,線上為 Noto Sans TC/Zen Maru。可再做:空狀態插圖、統計圖表配色微調、購物清單面板質感。
@@ -86,3 +88,4 @@
 - 注意:新增的天數列要放在同類別一般列之前,且「蛋糕」要在「蛋」之前(先比對先贏)。本機 main 曾落後遠端,每次先 git merge --ff-only origin/main。
 - 備份提醒的狀態只存 localStorage(hk-backup、hk-backup-since),換裝置會重新起算;若要跨裝置可改存 state.settings。下次可做:PWA 可行性驗證、條碼(M2b)、家庭共用需使用者決定。
 - 截圖腳本需在 localStorage 'housekeeper.state.v1' 預先塞資料才看得到常買品名;發布 page.html 結尾的 <!-- vN --> 註解每次遞增以避免內容相同被拒。PWA、條碼、家庭共用仍待。
+- 購物快選依「已處理過 ≥2 次」的歷史推算,新用戶看不到;PWA、條碼、家庭共用仍待。page.html 結尾註解現為 v37,下次改 v38。
