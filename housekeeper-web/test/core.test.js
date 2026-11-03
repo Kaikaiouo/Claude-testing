@@ -495,3 +495,14 @@ test('parseBulk:支援附到期日(11/20、11月20日、2027-01-05、到期11/20
   assert.equal(HK.parseBulk('鮮奶 10/20', t).items[0].expiry, '2026-10-20');
   assert.equal(HK.parseBulk('鮮奶 10/01', t).items[0].expiry, '2027-10-01');
 });
+
+test('parseBulk:@位置 語法覆蓋猜測的位置,且可與數量/到期日並用;非日期數字被略過', () => {
+  const t = '2026-11-03';
+  const r = HK.parseBulk('雞胸肉 @冷凍 x2\n@藥箱 感冒藥水 11/20\n鮮奶 @常溫\n牛奶 13/45', t);
+  const by = n => r.items.find(i => i.name === n);
+  assert.equal(by('雞胸肉').location, '冷凍'); assert.equal(by('雞胸肉').quantity, 2);
+  assert.equal(by('雞胸肉').expiry, HK.suggestExpiry('肉類', '冷凍', t).date);
+  assert.equal(by('感冒藥水').location, '藥箱'); assert.equal(by('感冒藥水').expiry, '2026-11-20');
+  assert.equal(by('鮮奶').location, '常溫');
+  assert.equal(r.skipped.length, 1);
+});

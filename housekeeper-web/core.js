@@ -495,16 +495,19 @@
     const parts = String(text || '').split(/[\n\r,，、;；]+/), map = new Map(), skipped = [];
     for (let raw of parts) {
       raw = raw.replace(/^[\s\-•*·●\d]+[.)、]\s*/, '').replace(/^[\s\-•*·●]+/, '').trim(); if (!raw) continue;
-      let qty = 1, name = raw, m, given = null;
+      let qty = 1, name = raw, m, given = null, forceLoc = null;
+      const lm = name.match(/\s*[@＠]\s*(冷藏|冷凍|常溫|櫃子|藥箱)\s*/);
+      if (lm) { forceLoc = lm[1]; name = (name.slice(0, lm.index) + ' ' + name.slice(lm.index + lm[0].length)).trim(); }
       const dm = name.match(/^(.*?)\s*(?:到期|exp\.?)?\s*(?:(\d{4})[-\/.])?(\d{1,2})[-\/.月](\d{1,2})日?$/i);
       if (dm && dm[1].trim()) { const d = bulkDate(dm[2], dm[3], dm[4], today); if (d) { given = d; name = dm[1]; } }
       if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; }
       else if ((m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/))) { name = m[1]; qty = +m[2]; }
       name = name.trim();
-      if (!name || name.length > 40 || !(qty >= 1 && qty <= 99)) { skipped.push(raw); continue; }
+      if (!name || /[\d]\s*[\/.\-:]\s*$|[\/.\-:]$/.test(name) || name.length > 40 || !(qty >= 1 && qty <= 99)) { skipped.push(raw); continue; }
       const key = name.replace(/\s+/g, '').toLowerCase(), prev = map.get(key);
       if (prev) { prev.quantity = Math.min(99, prev.quantity + qty); continue; }
-      const g = guessCategory(name) || { category: '其他', location: '冷藏' };
+      let g = guessCategory(name) || { category: '其他', location: '冷藏' };
+      if (forceLoc && forceLoc !== g.location) g = { category: g.category, location: forceLoc };
       const loc = LOCATIONS.find(l => l.name === g.location);
       const exp = given || (g.days ? addDays(today, g.days) : suggestExpiry(g.category, g.location, today).date);
       const r = makeItem({ name, category: g.category, location: g.location, quantity: qty, purchase: today, expiry: exp, estimated: !given, tempC: loc && loc.tempC !== null ? loc.tempC : '' }, today);
