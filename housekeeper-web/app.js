@@ -98,6 +98,7 @@
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
     const bn = $('banner'); bn.textContent = '';
     if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const fz = HK.freezeSoon(state.items, t); if (fz.changed.length) { const fb = el('button', 'ghost', `可冷凍的先冷凍(${fz.changed.length})`); fb.type = 'button'; fb.title = '2 天內到期、尚未開封的肉/蔬果/乳製品移到冷凍(到期日為保守估算)'; fb.onclick = () => { const r = HK.freezeSoon(state.items, t); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項移到冷凍(估算)`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', fb); } const cp = el('button', 'ghost', '複製清單'); cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); bn.append(b); }
+    if (HK.backupDue(lsGet('hk-backup'), lsGet('hk-backup-since'), state.items.length, t)) { const b = el('div', 'banner', '已經一個月沒備份了,下載一份備份檔比較安心。'); const go = el('button', 'ghost', '現在備份'); go.type = 'button'; go.onclick = () => $('sBackup').click(); const later = el('button', 'ghost', '稍後再說'); later.type = 'button'; later.onclick = () => { lsSet('hk-backup-since', t); render(); }; b.append(' ', go, ' ', later); bn.append(b); }
     // 位置篩選
     const chips = $('chips'); chips.textContent = '';
     for (const name of ['全部', ...HK.LOCATIONS.map(l => l.name)]) {
@@ -396,13 +397,16 @@
   };
 
   // 備份/還原
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  if (!lsGet('hk-backup-since')) lsSet('hk-backup-since', today());
   async function saveFile(name, text, type) {
     const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
     if (dl) return dl.save({ filename: name, data: new Blob([text], { type }) });
     const a = el('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.append(a); a.click(); a.remove();
   }
   $('sBackup').onclick = async () => {
-    try { await saveFile('housekeeper-backup-' + today() + '.json', HK.exportBackup(state), 'application/json'); $('backupMsg').textContent = `已備份 ${state.items.length} 項物品。`; }
+    try { await saveFile('housekeeper-backup-' + today() + '.json', HK.exportBackup(state), 'application/json'); lsSet('hk-backup', today()); render(); $('backupMsg').textContent = `已備份 ${state.items.length} 項物品。`; }
     catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
   };
   $('sCsv').onclick = async () => {

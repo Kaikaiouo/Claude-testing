@@ -441,3 +441,11 @@ test('parseCSV:可讀回 toCSV 匯出(含逗號引號、公式防護、已處理
   assert.equal(HK.parseCSV('a,b\r\n1,2', T).ok, false);
   assert.equal(HK.parseCSV('', T).ok, false);
 });
+
+test('backupDue:物品太少不提醒;超過 30 天才提醒;以備份日優先於起算日', () => {
+  assert.equal(HK.backupDue(null, '2026-01-01', 4, T), false);
+  assert.equal(HK.backupDue(null, '2026-01-01', 5, T), true);
+  assert.equal(HK.backupDue('2026-01-01', '2026-01-01', 5, HK.addDays('2026-01-01', 29)), false);
+  assert.equal(HK.backupDue('2026-01-01', '2020-01-01', 5, HK.addDays('2026-01-01', 30)), true);
+  assert.equal(HK.backupDue(null, null, 9, T), false);
+});

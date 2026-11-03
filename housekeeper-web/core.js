@@ -389,6 +389,13 @@
     });
     return { items: out, changed };
   }
+  // 備份提醒:至少 5 項物品,且距上次備份(沒備份過則距首次使用/上次按「稍後」)超過 days 天
+  function backupDue(lastBackup, since, count, today, days = 30) {
+    if (count < 5) return false;
+    const ref = parseDay(lastBackup) ? lastBackup : since;
+    if (!parseDay(ref)) return false;
+    return daysLeft(ref, today) <= -days;
+  }
   function removeItem(items, id) { return items.filter(i => i.id !== id); }
   function reinsertItem(items, item, idx) { if (items.some(i => i.id === item.id)) return items; const a = items.slice(); a.splice(Math.max(0, Math.min(idx, a.length)), 0, item); return a; }
   function restoreItems(items, snapshots) { const m = new Map(snapshots.map(i => [i.id, i])); return items.map(i => m.get(i.id) || i); }
@@ -464,7 +471,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, recallItem, guessCategory, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
