@@ -514,3 +514,28 @@ test('removeShopping / restoreShopping 移除後可原位復原', () => {
   assert.deepEqual(HK.restoreShopping(r.shopping, r.removed).map(x => x.id), ['a', 'b', 'c', 'd']);
   assert.equal(HK.restoreShopping(l, r.removed).length, 4);
 });
+
+test('recipeCandidates:只取 3 天內到期的食材,排除過期/藥品/已處理/同名,依剩餘天數排序', () => {
+  const mk = (name, category, location, off, extra = {}) => HK.makeItem(Object.assign({ name, category, location, quantity: 1, expiry: HK.addDays(T, off), purchase: T }, extra), T).item;
+  const items = [mk('鮮奶', '乳製品', '冷藏', 2), mk('青江菜', '蔬菜', '冷藏', 0), mk('過期菜', '蔬菜', '冷藏', -1), mk('感冒藥', '藥品', '藥箱', 1),
+    mk('雞胸肉', '肉類', '冷凍', 40), mk('鮮奶', '乳製品', '冷藏', 1), Object.assign(mk('吃完了', '蔬菜', '冷藏', 1), { done: true }), mk('洗面乳', '保養品', '櫃子', 1)];
+  const c = HK.recipeCandidates(items, T);
+  assert.deepStrictEqual(c.map(x => x.name), ['青江菜', '鮮奶']);
+  assert.strictEqual(c[0].daysLeft, 0);
+  assert.deepStrictEqual(HK.recipeCandidates([], T), []);
+  assert.strictEqual(HK.recipeCandidates(items, T, 3, 1).length, 1);
+});
+
+test('recipePrompt 含食材與剩餘天數;parseRecipes 只收用到清單食材的有效食譜', () => {
+  const list = [{ name: '青江菜', daysLeft: 0, location: '冷藏' }, { name: '鮮奶', daysLeft: 2, location: '冷藏' }];
+  const p = HK.recipePrompt(list, T);
+  assert.ok(p.includes("青江菜(今天到期,放冷藏)") && p.includes("鮮奶(2 天後到期,放冷藏)"));
+  const raw = [{ title: '清炒青江菜', uses: ['青江菜', '不存在', '青江菜'], minutes: 10.4, how: '熱油爆香,下菜炒熟。' },
+    { title: '亂編', uses: ['牛排'], minutes: 5, how: 'x' }, { title: '', uses: ['鮮奶'], how: 'x' }, null, 'str', { title: '奶茶', uses: ['鮮奶'], minutes: 9999, how: '煮開。' }];
+  const r = HK.parseRecipes(raw, list);
+  assert.strictEqual(r.length, 2);
+  assert.deepStrictEqual(r[0], { title: '清炒青江菜', uses: ['青江菜'], minutes: 10, how: '熱油爆香,下菜炒熟。' });
+  assert.strictEqual(r[1].minutes, null);
+  assert.deepStrictEqual(HK.parseRecipes({ recipes: raw }, list).length, 2);
+  assert.deepStrictEqual(HK.parseRecipes('壞掉', list), []);
+});

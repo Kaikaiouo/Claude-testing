@@ -97,7 +97,7 @@
     // 提醒橫幅:已過期,或在「提醒天數」內
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
     const bn = $('banner'); bn.textContent = '';
-    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const fz = HK.freezeSoon(state.items, t); if (fz.changed.length) { const fb = el('button', 'ghost', `可冷凍的先冷凍(${fz.changed.length})`); fb.type = 'button'; fb.title = '2 天內到期、尚未開封的肉/蔬果/乳製品移到冷凍(到期日為保守估算)'; fb.onclick = () => { const r = HK.freezeSoon(state.items, t); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項移到冷凍(估算)`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', fb); } const cp = el('button', 'ghost', '複製清單'); cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); bn.append(b); }
+    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const fz = HK.freezeSoon(state.items, t); if (fz.changed.length) { const fb = el('button', 'ghost', `可冷凍的先冷凍(${fz.changed.length})`); fb.type = 'button'; fb.title = '2 天內到期、尚未開封的肉/蔬果/乳製品移到冷凍(到期日為保守估算)'; fb.onclick = () => { const r = HK.freezeSoon(state.items, t); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項移到冷凍(估算)`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', fb); } const cp = el('button', 'ghost', '複製清單'); cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); if (sampleFn && HK.recipeCandidates(state.items, t).length) { const rc = el('button', 'ghost', '想菜色'); rc.type = 'button'; rc.title = '請 Claude 用快到期的食材想幾道家常菜(會使用你的 Claude 額度)'; rc.onclick = openRecipes; b.append(' ', rc); } bn.append(b); }
     if (HK.backupDue(lsGet('hk-backup'), lsGet('hk-backup-since'), state.items.length, t)) { const b = el('div', 'banner', '已經一個月沒備份了,下載一份備份檔比較安心。'); const go = el('button', 'ghost', '現在備份'); go.type = 'button'; go.onclick = () => $('sBackup').click(); const later = el('button', 'ghost', '稍後再說'); later.type = 'button'; later.onclick = () => { lsSet('hk-backup-since', t); render(); }; b.append(' ', go, ' ', later); bn.append(b); }
     // 位置篩選
     const chips = $('chips'); chips.textContent = '';
@@ -330,7 +330,7 @@
       if (!(window.claude && window.claude.use)) return;
       const sm = await window.claude.use('sample'); if (!sm) return;
       const lim = await sm.limits().catch(() => null); if (!lim || !lim.images) return;
-      sampleFn = sm; $('scanFile').accept = lim.images.mediaTypes.join(','); $('scanBox').hidden = false;
+      sampleFn = sm; $('scanFile').accept = lim.images.mediaTypes.join(','); $('scanBox').hidden = false; render();
     } catch (e) { /* 沒有就維持手動輸入 */ }
   }
   let thumbUrl = null;
@@ -352,6 +352,29 @@
     } catch (err) { msg.textContent = SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
     finally { scanCtl = null; btn.textContent = '📷 拍照/選圖辨識'; }
   };
+
+  // 快到期食材想菜色(沿用 sample;只送品名與剩餘天數)
+  let recipeCtl = null;
+  async function openRecipes() {
+    const list = HK.recipeCandidates(state.items, today()); if (!list.length || !sampleFn) return;
+    $('recipeWrap').hidden = false;
+    $('recipeUse').textContent = '用到:' + list.map(c => c.name + (c.daysLeft === 0 ? '(今天)' : `(${c.daysLeft}天)`)).join('、');
+    const out = $('recipeOut'), btn = $('recipeAgain'); out.textContent = '正在想菜色…'; btn.disabled = true;
+    if (recipeCtl) recipeCtl.abort(); const ctl = recipeCtl = new AbortController();
+    try {
+      const raw = await sampleFn.json(HK.recipePrompt(list, today()), { modelTier: 'quick', signal: ctl.signal });
+      const rs = HK.parseRecipes(raw, list); out.textContent = '';
+      if (!rs.length) { out.textContent = '這次沒想出合適的菜色,再試一次看看。'; return; }
+      for (const r of rs) {
+        const d = el('div', 'rcp'); d.append(el('b', '', r.title + (r.minutes ? `・約 ${r.minutes} 分鐘` : '')), el('div', 'note', '用到:' + r.uses.join('、')), el('div', '', r.how)); out.append(d);
+      }
+      out.append(el('div', 'note', '食譜由 Claude 提供,僅供參考;食材若有異味或外觀不對請勿食用。'));
+    } catch (err) { if (ctl.signal.aborted) return; out.textContent = SCAN_ERR[err && err.code] || '想不出來,請稍後再試。'; }
+    finally { if (recipeCtl === ctl) { recipeCtl = null; btn.disabled = false; } }
+  }
+  const closeRecipes = () => { if (recipeCtl) recipeCtl.abort(); recipeCtl = null; $('recipeWrap').hidden = true; };
+  $('recipeClose').onclick = closeRecipes; $('recipeAgain').onclick = openRecipes;
+  $('recipeWrap').addEventListener('click', e => { if (e.target === $('recipeWrap')) closeRecipes(); });
 
   // 一次新增多項
   const bulkSync = () => { const r = HK.parseBulk($('bulkText').value, today()); $('bulkPrev').textContent = r.items.length ? `將加入 ${r.items.length} 項:` + r.items.slice(0, 8).map(i => `${i.name}×${i.quantity}(${i.category}/${i.location})`).join('、') + (r.items.length > 8 ? '…' : '') + (r.skipped.length ? `;略過 ${r.skipped.length} 行無法辨識` : '') : ''; $('bulkSave').disabled = !r.items.length; };
@@ -513,7 +536,7 @@
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
   // 桌機快捷鍵:/ 搜尋、n 新增(輸入中或對話框開著時不觸發)
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;

@@ -519,6 +519,41 @@
     return { items: [...map.values()], skipped };
   }
 
+  // ---- 快到期食材想菜色(需 sample 能力;只送品名與剩餘天數,不送其他資料) ----
+  const FOOD_CATS = ['蔬菜', '水果', '肉類', '乳製品', '其他'];
+  function recipeCandidates(items, today, within = 3, max = 8) {
+    const seen = new Set(), out = [];
+    for (const i of items.filter(x => !x.done && FOOD_CATS.includes(x.category) && x.location !== '藥箱' && x.location !== '櫃子')
+      .map(x => ({ x, d: daysLeft(x.expiry, today) })).filter(o => o.d >= 0 && o.d <= within).sort((a, b) => a.d - b.d)) {
+      const k = String(i.x.name).trim().toLowerCase(); if (!k || seen.has(k)) continue; seen.add(k);
+      out.push({ name: String(i.x.name).trim().slice(0, 20), daysLeft: i.d, location: i.x.location });
+      if (out.length >= max) break;
+    }
+    return out;
+  }
+  function recipePrompt(list, today) {
+    const lines = list.map(c => `- ${c.name}(${c.daysLeft === 0 ? '今天到期' : c.daysLeft + ' 天後到期'},放${c.location})`).join('\n');
+    return `你是台灣家庭的料理助手。以下食材快到期,請想 3 道簡單家常菜,盡量一次用掉越多越好,其他只可再用常見調味料與家裡一定有的基本食材(油、鹽、醬油、蛋、米)。今天是 ${today}。
+${lines}
+只回傳 JSON 陣列,不要其他文字:[{"title": 菜名(繁體中文,最多 16 字), "uses": 用到上面清單中的食材名稱陣列, "minutes": 預估分鐘數(整數), "how": 做法一兩句話(最多 80 字)}]
+食材若已有異味或外觀不對請不要建議食用;不要編造清單以外的食材當主料。`;
+  }
+  function parseRecipes(raw, list) {
+    const arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.recipes) ? raw.recipes : null); if (!arr) return [];
+    const names = new Set(list.map(c => c.name)); const out = [];
+    for (const r of arr) {
+      if (!r || typeof r !== 'object') continue;
+      const title = typeof r.title === 'string' ? r.title.trim().slice(0, 30) : '', how = typeof r.how === 'string' ? r.how.trim().slice(0, 160) : '';
+      if (!title || !how) continue;
+      const uses = (Array.isArray(r.uses) ? r.uses : []).filter(u => typeof u === 'string' && names.has(u.trim())).map(u => u.trim());
+      if (!uses.length) continue;
+      const m = Math.round(Number(r.minutes));
+      out.push({ title, uses: [...new Set(uses)], minutes: m >= 1 && m <= 240 ? m : null, how });
+      if (out.length >= 5) break;
+    }
+    return out;
+  }
+
   // 範例資料(使用者按「載入範例」才會加入)
   function sampleItems(today) {
     const mk = (name, category, location, quantity, off, estimated = false) => makeItem({ name, category, location, quantity, expiry: addDays(today, off), purchase: addDays(today, -3), estimated, tempC: location === '冷藏' ? 4 : location === '冷凍' ? -18 : '' }, today).item;
@@ -526,7 +561,7 @@
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
