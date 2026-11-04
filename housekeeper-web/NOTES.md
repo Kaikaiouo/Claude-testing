@@ -70,6 +70,7 @@
 - 2026-11-04 約 07:00(UTC;台灣約 15:00):新增「想菜色」(core.js 的 recipeCandidates/recipePrompt/parseRecipes + 測試:3 天內到期的食材最多 8 項、排除已過期/藥品/保養品/已處理/同名;只把品名與剩餘天數送 sample,回傳經驗證只收用到清單食材的食譜;橫幅出現「想菜色」鈕,對話框可「換一批」、Esc/點外面關閉並取消請求,無 sample 能力時隱藏)。53 個測試通過,400/1280 寬度(以 mock sample 驗證)無橫向捲動、無 JS 錯誤。已發布(版本 44,capabilities 沿用)。
 
 - 2026-11-04 約 09:00(UTC;台灣約 17:00):無障礙補強(index.html:減少動態偏好時連 animation/scroll-behavior 一併停用;forced-colors 高對比模式下焦點框與卡片邊框;prefers-contrast: more 加強邊線與說明文字對比)。53 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 45,capabilities 沿用)。
+- 2026-11-04 約 13:00(UTC;台灣約 21:00):購物清單新增「已買的全部放入清單(N)」(core.js 的 shopBoughtToItems + 測試:已勾買好的一次轉成庫存物品,到期日依類別估算並標為估算,未買的留在清單;可復原)。54 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 46,capabilities 沿用)。
 
 ## 給下次的筆記
 - page.html 結尾註解現為 v41,下次改 v42。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,已支援 @位置;尚不支援購買日語法。
@@ -103,3 +104,5 @@
 - page.html 結尾註解現為 v44,下次改 v45(重發內容若與被拒版本相同要微調註解)。想菜色用真實 sample 未測(只有 mock);之後可加:食譜收藏、依家人飲食限制。page.html 產生法:index.html 取 head(去 charset/viewport meta)+ body 內容 + 結尾註解,放 scratchpad。發布時 files 帶 core.js、app.js 絕對路徑。
 
 - page.html 結尾註解現為 v45 a11y,下次改 v46。發布前必須先 read 線上版(core.js、app.js)才不會被拒;本機若為 detached HEAD 先 git checkout -B main origin/main。
+
+- page.html 結尾註解現為 v46 shop-all-bought,下次改 v47。發布流程:先 read 線上版,若內容相同被拒就微調結尾註解再發。

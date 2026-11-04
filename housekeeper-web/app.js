@@ -210,6 +210,10 @@
       body.append(ul);
       }
       if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
+      if (list.some(x => x.bought)) { const ab = el('button', 'primary', `已買的全部放入清單(${list.filter(x => x.bought).length})`); ab.type = 'button'; ab.title = '到期日依類別估算,之後可再編輯';
+        ab.onclick = () => { const r = HK.shopBoughtToItems(state.shopping, today()); if (!r.items.length) return; const prevShop = state.shopping; state.items.push(...r.items); state.shopping = r.shopping; commit(); showShop(); render();
+          snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = prevShop; commit(); showShop(); render(); }); };
+        const wa = el('div', 'btns'); wa.append(ab); body.append(wa); }
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
     $('shopWrap').hidden = false;

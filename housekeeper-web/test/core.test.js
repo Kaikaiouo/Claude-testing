@@ -539,3 +539,17 @@ test('recipePrompt 含食材與剩餘天數;parseRecipes 只收用到清單食�
   assert.deepStrictEqual(HK.parseRecipes({ recipes: raw }, list).length, 2);
   assert.deepStrictEqual(HK.parseRecipes('壞掉', list), []);
 });
+
+test('shopBoughtToItems:已買項目一次轉成庫存物品,未買留在清單', () => {
+  const T = '2026-11-04';
+  let sh = HK.addShopping([], { name: '鮮奶', category: '乳製品', location: '冷藏', quantity: 2 }).list;
+  sh = HK.addShopping(sh, { name: '青菜', category: '蔬菜', location: '冷藏', quantity: 1 }).list;
+  sh.find(x => x.name === '鮮奶').bought = true;
+  const r = HK.shopBoughtToItems(sh, T);
+  assert.strictEqual(r.items.length, 1);
+  assert.strictEqual(r.items[0].name, '鮮奶'); assert.strictEqual(r.items[0].quantity, 2);
+  assert.strictEqual(r.items[0].estimated, true); assert.strictEqual(r.items[0].purchase, T);
+  assert.deepStrictEqual(r.shopping.map(x => x.name), ['青菜']);
+  assert.strictEqual(r.moved.length, 1);
+  assert.strictEqual(HK.shopBoughtToItems(r.shopping, T).items.length, 0);
+});

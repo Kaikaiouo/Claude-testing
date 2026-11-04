@@ -242,6 +242,17 @@
     return { name: s.name, category: s.category, location: s.location, quantity: s.quantity, purchase: today, expiry: r.date, estimated: true, tempC: l && l.tempC !== null ? l.tempC : '' };
   }
 
+  // 已買好的購物清單項目一次放入庫存(到期日依類別估算,標為估算);回傳新物品與剩餘清單
+  function shopBoughtToItems(shopping, today) {
+    const items = [], rest = [], moved = [];
+    for (const s of shopping || []) {
+      if (!s.bought) { rest.push(s); continue; }
+      const r = makeItem(shopToForm(s, today), today);
+      if (r.item) { items.push(r.item); moved.push(s); } else rest.push(s);
+    }
+    return { items, shopping: rest, moved };
+  }
+
   // ---- 文字分享:快到期清單、購物清單(可貼到 LINE / 備忘錄)----
   const STATUS_TAG = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
   function expiringText(items, today, days = 7) {
@@ -561,7 +572,7 @@ ${lines}
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
