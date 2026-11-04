@@ -506,3 +506,11 @@ test('parseBulk:@位置 語法覆蓋猜測的位置,且可與數量/到期日並
   assert.equal(by('鮮奶').location, '常溫');
   assert.equal(r.skipped.length, 1);
 });
+
+test('removeShopping / restoreShopping 移除後可原位復原', () => {
+  const l = [{ id: 'a', bought: false }, { id: 'b', bought: true }, { id: 'c', bought: true }, { id: 'd', bought: false }];
+  const r = HK.removeShopping(l, x => x.bought);
+  assert.deepEqual(r.shopping.map(x => x.id), ['a', 'd']);
+  assert.deepEqual(HK.restoreShopping(r.shopping, r.removed).map(x => x.id), ['a', 'b', 'c', 'd']);
+  assert.equal(HK.restoreShopping(l, r.removed).length, 4);
+});

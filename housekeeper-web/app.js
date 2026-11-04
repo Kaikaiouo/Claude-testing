@@ -204,13 +204,13 @@
           acts.append(put);
         }
         const del = el('button', 'ghost', '移除'); del.setAttribute('aria-label', `移除${x.name}`);
-        del.onclick = () => { state.shopping = state.shopping.filter(y => y.id !== x.id); commit(); showShop(); };
+        del.onclick = () => { const r = HK.removeShopping(state.shopping, y => y.id === x.id); state.shopping = r.shopping; commit(); showShop(); snack(`已移除「${x.name}」`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); };
         acts.append(del); li.append(acts); ul.append(li);
       }
       body.append(ul);
       }
       if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
-      if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { state.shopping = state.shopping.filter(x => !x.bought); commit(); showShop(); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
+      if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
     $('shopWrap').hidden = false;
   }
