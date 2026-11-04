@@ -514,6 +514,14 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; } });
+  // 桌機快捷鍵:/ 搜尋、n 新增(輸入中或對話框開著時不觸發)
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+    if (typing || document.querySelector('.sheetwrap:not([hidden])')) return;
+    if (e.key === '/') { e.preventDefault(); $('search').focus(); }
+    else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openForm(null); }
+  });
   $('search').addEventListener('input', e => { query = e.target.value; render(); });
   window.__hk = { state: () => state, commit };
   render(); initCloud(); initScan();

@@ -64,9 +64,10 @@
 
 - 2026-11-03 約 22:30(UTC;台灣 11-04 約 06:30):「一次新增多項」支援行尾附到期日(core.js 的 bulkDate + parseBulk 測試:11/20、11月20日、2027-01-05、到期11/20;沒寫年份取 30 天前以後最近一次;有給日期者不標估算,可與 x2 並用)。對話框說明與 placeholder 同步更新。49 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 39,capabilities 沿用)。
 - 2026-11-03 約 23:30(UTC;台灣 11-04 約 07:30):「一次新增多項」支援 @位置 語法(core.js parseBulk:雞胸肉 @冷凍、@藥箱 感冒藥水;位置與猜測不同時改用該位置的類別估算天數,可與 x2、到期日並用),並修正「牛奶 13/45」這類非日期數字被誤當數量的邊角(改為略過)+ 測試。對話框說明與 placeholder 同步。50 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 40,capabilities 沿用)。
+- 2026-11-04 約 02:00(UTC;台灣約 10:00):新增桌機快捷鍵(「/」聚焦搜尋、「n」新增物品;輸入中或對話框開啟時不觸發,搜尋框加 aria-keyshortcuts)。50 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 41,capabilities 沿用)。
 
 ## 給下次的筆記
-- page.html 結尾註解現為 v40,下次改 v41。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,已支援 @位置;尚不支援購買日語法。
+- page.html 結尾註解現為 v41,下次改 v42。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,已支援 @位置;尚不支援購買日語法。
 - 截圖腳本的 TMPDIR 在這環境是空的,請用 scratchpad 路徑;#fab 在 file:// 下 offsetParent 為 null 但 click() 可用。
 - 視覺:新增 token --glass/--card-line/--ring/--elev1/2/--bgfx(淺深色皆有)。字型在沙盒截圖是 fallback,線上為 Noto Sans TC/Zen Maru。可再做:空狀態插圖、統計圖表配色微調、購物清單面板質感。
 - 截圖腳本別用 heredoc 前先 cat > $TMPDIR(會卡住);playwright 在 /opt/npm-tools/node_modules,用 NODE_PATH 指過去。CSV 已可匯入(匯入的物品一律產生新 id;完整備份仍以 JSON 為準,CSV 不含開封/備註等欄位)。
