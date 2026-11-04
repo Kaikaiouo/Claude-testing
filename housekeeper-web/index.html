@@ -228,7 +228,9 @@
   .empty { background:var(--glass); border:1px dashed var(--card-line); border-radius:20px; }
   .snack { box-shadow:var(--elev2); border-radius:14px; }
   details.hist summary { padding:6px 2px; }
-  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } button:active { transform:none; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } button:active { transform:none; } }
+  @media (forced-colors: active) { button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid Highlight; } .row { border:1px solid CanvasText; } }
+  @media (prefers-contrast: more) { :root { --card-line: currentColor; } .note { opacity:1; } }
 .rcp{margin:10px 0;padding:10px 12px;border:1px solid var(--card-line,var(--line,#ddd));border-radius:12px}.rcp b{display:block;margin-bottom:2px}
 </style>
 </head>
