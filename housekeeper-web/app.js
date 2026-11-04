@@ -78,7 +78,7 @@
       d.onclick = () => { Object.assign(item, HK.finishItem(item, today()).item); commit(); offerRestock(item); };
       if (item.quantity > 1) {
         const one = el('button', 'done-btn', '用 1 個'); one.title = `數量 ${item.quantity} → ${item.quantity - 1}`;
-        one.onclick = () => { Object.assign(item, HK.finishItem(item, today(), { all: false }).item); commit(); };
+        one.onclick = () => { const q = item.quantity; Object.assign(item, HK.finishItem(item, today(), { all: false }).item); commit(); snack(`「${item.name}」用掉 1 個,剩 ${item.quantity}`, '復原', () => { item.quantity = q; commit(); }); };
         const acts = el('div', 'acts'); acts.append(one, d); li.append(acts);
       } else if (canOpen) {
         const op = el('button', 'done-btn', '開封'); op.title = `標示已開封,約 ${canOpen} 天內吃完`; op.setAttribute('aria-label', `${item.name} 標示開封`);

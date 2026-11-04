@@ -66,6 +66,7 @@
 - 2026-11-03 約 23:30(UTC;台灣 11-04 約 07:30):「一次新增多項」支援 @位置 語法(core.js parseBulk:雞胸肉 @冷凍、@藥箱 感冒藥水;位置與猜測不同時改用該位置的類別估算天數,可與 x2、到期日並用),並修正「牛奶 13/45」這類非日期數字被誤當數量的邊角(改為略過)+ 測試。對話框說明與 placeholder 同步。50 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 40,capabilities 沿用)。
 - 2026-11-04 約 02:00(UTC;台灣約 10:00):新增桌機快捷鍵(「/」聚焦搜尋、「n」新增物品;輸入中或對話框開啟時不觸發,搜尋框加 aria-keyshortcuts)。50 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 41,capabilities 沿用)。
 - 2026-11-04 約 04:00(UTC;台灣約 12:00):購物清單「移除」與「清除已買的」都改成可復原(core.js 的 removeShopping/restoreShopping 原位還原 + 測試,提示條「復原」)。51 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 42,capabilities 沿用)。
+- 2026-11-04 約 07:00(UTC;台灣約 15:00):列表「用 1 個」加上復原提示條(還原原數量)。51 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 43,capabilities 沿用)。
 
 ## 給下次的筆記
 - page.html 結尾註解現為 v41,下次改 v42。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,已支援 @位置;尚不支援購買日語法。
@@ -96,4 +97,4 @@
 - 備份提醒的狀態只存 localStorage(hk-backup、hk-backup-since),換裝置會重新起算;若要跨裝置可改存 state.settings。下次可做:PWA 可行性驗證、條碼(M2b)、家庭共用需使用者決定。
 - 截圖腳本需在 localStorage 'housekeeper.state.v1' 預先塞資料才看得到常買品名;發布 page.html 結尾的 <!-- vN --> 註解每次遞增以避免內容相同被拒。PWA、條碼、家庭共用仍待。
 - 購物快選依「已處理過 ≥2 次」的歷史推算,新用戶看不到;PWA、條碼、家庭共用仍待。page.html 結尾註解現為 v37,下次改 v38。
-- page.html 結尾註解現為 v42,下次改 v43。page.html 產生法:index.html 取 head(去 charset/viewport meta)+ body 內容 + 結尾註解,放 scratchpad。發布時 files 帶 core.js、app.js 絕對路徑。
+- page.html 結尾註解現為 v43,下次改 v44。page.html 產生法:index.html 取 head(去 charset/viewport meta)+ body 內容 + 結尾註解,放 scratchpad。發布時 files 帶 core.js、app.js 絕對路徑。
