@@ -370,7 +370,7 @@
     const f = e.target.files[0]; e.target.value = ''; if (!f || !sampleFn) return;
     const msg = $('bulkScanMsg'), btn = $('bulkScan'); bulkCtl = new AbortController(); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在看照片裡有哪些東西…';
     try {
-      const raw = await sampleFn.json(HK.scanMultiPrompt(today()), { images: [f], modelTier: 'quick', signal: bulkCtl.signal });
+      const raw = await sampleFn.json(HK.scanMultiPrompt(today(), { receipt: $('bulkReceipt').checked }), { images: [f], modelTier: 'quick', signal: bulkCtl.signal });
       const list = HK.parseScanMulti(raw, today());
       if (!list.length) { msg.textContent = '沒有認出商品,請換一張或手動輸入。'; return; }
       const cur = $('bulkText').value.trim(); $('bulkText').value = (cur ? cur + '\n' : '') + HK.scanToBulkText(list); bulkSync();

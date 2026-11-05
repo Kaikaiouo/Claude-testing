@@ -398,10 +398,11 @@
   }
 
   // 多件商品一次辨識(購物照、冰箱照、收據):回傳陣列,轉成「一次新增多項」的文字行讓使用者確認
-  function scanMultiPrompt(today) {
+  function scanMultiPrompt(today, { receipt = false } = {}) {
+    const extra = receipt ? `\n這張是購物收據:只列需要管理保存期限的食品、藥品、日用品;略過價格、金額、折扣、稅額、塑膠袋、會員、贈品與非商品的行;把縮寫還原成常見品名(例如「無糖豆漿1L」→ 無糖豆漿);收據上沒有有效日期,expiry 一律填 null。` : '';
     return `你是家庭物品到期管理的助手。圖片裡有多件食品、藥品或日用品(可能是購物戰利品、冰箱內部或收據)。請列出看得出來的每一項,只回傳一個 JSON 陣列,不要其他文字,最多 15 項:
 [{"name": 品名(繁體中文,最多 20 字), "category": 從 ${CATEGORIES.join('、')} 擇一, "location": 建議存放位置,從 ${LOCATIONS.map(l => l.name).join('、')} 擇一, "expiry": 包裝上清楚可見的有效日期 YYYY-MM-DD,看不到就填 null, "quantity": 整數,預設 1}]
-今天是 ${today}。民國年請換算成西元;不要猜測日期;同樣的商品合併成一項並填數量。`;
+今天是 ${today}。民國年請換算成西元;不要猜測日期;同樣的商品合併成一項並填數量。${extra}`;
   }
   function parseScanMulti(raw, today) {
     const arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.items) ? raw.items : null);

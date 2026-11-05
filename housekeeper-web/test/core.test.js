@@ -595,3 +595,10 @@ test('parseScanMulti / scanToBulkText:多件辨識轉成批次新增文字', () 
   assert.equal(b.length, 2); assert.equal(b[0].quantity, 2); assert.equal(b[0].expiry, '2026-11-20'); assert.equal(b[0].location, '冷藏');
   assert.equal(b[1].estimated, true);
 });
+
+test('scanMultiPrompt: 收據模式加註略過價格且 expiry 填 null', () => {
+  const n = HK.scanMultiPrompt('2026-11-05'), r = HK.scanMultiPrompt('2026-11-05', { receipt: true });
+  assert.ok(!n.includes('收據:只列'));
+  assert.ok(r.includes('略過價格') && r.includes('expiry 一律填 null'));
+  assert.ok(r.startsWith(n.slice(0, 40)));
+});
