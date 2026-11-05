@@ -44,7 +44,7 @@
   }
 
   // ---------- 清單 ----------
-  let locFilter = '', query = '', stFilter = '', sortMode = 'expiry';
+  let histAll = false, locFilter = '', query = '', stFilter = '', sortMode = 'expiry';
   try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
   const STATUS_LABEL = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
 
@@ -122,7 +122,13 @@
     } else for (const i of shown) list.append(rowFor(i, 'active'));
     // 已處理
     $('hist').hidden = !done.length; $('histSum').textContent = `已處理(${done.length})`;
-    const hl = $('histList'); hl.textContent = ''; for (const i of HK.sortByExpiry(done).reverse()) hl.append(rowFor(i, 'done'));
+    const hl = $('histList'); hl.textContent = '';
+    const sortedDone = HK.sortDone(done), HCAP = 20, vis = histAll ? sortedDone : sortedDone.slice(0, HCAP);
+    for (const i of vis) hl.append(rowFor(i, 'done'));
+    const hm = $('histMore'); hm.textContent = '';
+    if (sortedDone.length > HCAP && !histAll) { const b = el('button', 'ghost', `顯示全部 ${sortedDone.length} 筆`); b.type = 'button'; b.onclick = () => { histAll = true; render(); }; hm.append(b); }
+    const oldN = HK.pruneDone(state.items, 90, t).removed.length;
+    if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()), before = state.items; state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = before; commit(); }); }; hm.append(b); }
     $('sync').textContent = syncMsg;
     const left = state.shopping.filter(x => !x.bought).length; $('btnShop').textContent = left ? `購物清單 ${left}` : '購物清單';
   }

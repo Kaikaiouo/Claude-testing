@@ -74,7 +74,10 @@
 - 2026-11-05 約 12:00(UTC;台灣約 20:00):統計面板新增「連續 N 天沒有浪費」(core.js stats 新增 cleanDays/lastWasted + 測試;自最近一次過期才處理起算,從未浪費則自最早處理日;舊資料無 doneAt 者不計)。55 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 47,capabilities 沿用)。
 - 2026-11-05 約 14:00(UTC;台灣約 22:00):分頁標題顯示需注意數量(core.js 的 titleFor:已過期+快到期,例如「(3) housekeeper」,超過 99 顯示 99+)+ 測試。56 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 48,capabilities 沿用)。
 
+- 2026-11-05 約 21:00(UTC;台灣 11-06 約 05:00):已處理紀錄改依處理時間新到舊排序、預設只顯示 20 筆(「顯示全部」),並新增「清除 90 天前的紀錄(N)」(core.js 的 sortDone/pruneDone + 測試;無 doneAt 的舊資料與未處理者保留;可復原)。57 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 49,capabilities 沿用)。
+
 ## 給下次的筆記
+- page.html 結尾註解現為 v49 history-prune,下次改 v50。歷史清除固定 90 天,若要可調可放設定。PWA、條碼、家庭共用仍待。
 - page.html 結尾註解現為 v48 title-badge ok,下次改 v49。
 - page.html 結尾註解現為 v47 clean-streak,下次改 v48。發布若被拒,內容若與讀到的線上版一致,原樣再發一次即可通過。本機若為 detached HEAD 先 git checkout -B main origin/main。
 - page.html 結尾註解現為 v41,下次改 v42。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,已支援 @位置;尚不支援購買日語法。

@@ -232,6 +232,7 @@
   @media (forced-colors: active) { button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid Highlight; } .row { border:1px solid CanvasText; } }
   @media (prefers-contrast: more) { :root { --card-line: currentColor; } .note { opacity:1; } }
 .rcp{margin:10px 0;padding:10px 12px;border:1px solid var(--card-line,var(--line,#ddd));border-radius:12px}.rcp b{display:block;margin-bottom:2px}
+.histmore{display:flex;flex-wrap:wrap;gap:8px;padding:8px 2px}.histmore:empty{display:none}
 </style>
 </head>
 <body>
@@ -251,7 +252,7 @@
     </aside>
     <main class="main">
       <ul class="list" id="list"></ul>
-      <details class="hist" id="hist"><summary id="histSum"></summary><ul class="list" id="histList"></ul></details>
+      <details class="hist" id="hist"><summary id="histSum"></summary><ul class="list" id="histList"></ul><div class="histmore" id="histMore"></div></details>
     </main>
   </div>
 </div>

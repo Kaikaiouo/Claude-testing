@@ -570,3 +570,15 @@ test('titleFor 把需要注意的數量放在分頁標題', () => {
   assert.strictEqual(HK.titleFor({ expired: 1, urgent: 2, soon: 0, ok: 0 }), '(3) housekeeper');
   assert.strictEqual(HK.titleFor({ expired: 150, urgent: 0 }), '(99+) housekeeper');
 });
+
+test('sortDone 依處理時間新到舊;pruneDone 只清舊的已處理紀錄', () => {
+  const mk = (n, doneAt, done = true, expiry = '2026-10-01') => ({ id: n, name: n, done, doneAt, expiry });
+  const now = Date.parse('2026-11-05T04:00:00Z');
+  const day = 86400000;
+  const items = [mk('a', now - 200 * day), mk('b', now - 1 * day), mk('c', null), mk('d', now - 100 * day), mk('e', now - 300 * day, false)];
+  assert.deepStrictEqual(HK.sortDone(items.filter(i => i.done)).map(i => i.id), ['b', 'd', 'a', 'c']);
+  const r = HK.pruneDone(items, 90, '2026-11-05');
+  assert.deepStrictEqual(r.removed.map(i => i.id), ['a', 'd']);
+  assert.deepStrictEqual(r.kept.map(i => i.id), ['b', 'c', 'e']);
+  assert.strictEqual(HK.pruneDone(items, 400, '2026-11-05').removed.length, 0);
+});

@@ -154,6 +154,25 @@
   // 分頁標題:已過期 + 快到期(urgent)的數量放在前面,例如「(3) housekeeper」;0 項時維持原名
   function titleFor(s, base = 'housekeeper') { const n = (s.expired || 0) + (s.urgent || 0); return n > 0 ? `(${n > 99 ? '99+' : n}) ${base}` : base; }
 
+
+  // ---- 已處理紀錄:依處理時間新到舊排序(無 doneAt 者排後面、依到期日新到舊);清除 N 天前的舊紀錄 ----
+  function sortDone(items) {
+    return items.slice().sort((a, b) => {
+      const x = Number.isFinite(a.doneAt) ? a.doneAt : -Infinity, y = Number.isFinite(b.doneAt) ? b.doneAt : -Infinity;
+      if (x !== y) return y - x;
+      return String(b.expiry).localeCompare(String(a.expiry));
+    });
+  }
+  // 只清有 doneAt 且早於 today 往前 days 天的已處理項目;沒有 doneAt 的舊資料與未處理者一律保留
+  function pruneDone(items, days, today) {
+    const cutoff = parseDay(addDays(today, -days)); const kept = [], removed = [];
+    for (const i of items) {
+      const old = i.done && Number.isFinite(i.doneAt) && parseDay(todayStr(new Date(i.doneAt))) < cutoff;
+      (old ? removed : kept).push(i);
+    }
+    return { kept, removed };
+  }
+
   // 兩邊狀態合併:updatedAt 較新者勝(用於本機與雲端同步)
   function pickNewer(local, remote) {
     if (!remote) return local;
@@ -584,7 +603,7 @@ ${lines}
       mk('優格', '乳製品', '冷藏', 4, 6), mk('感冒藥水', '藥品', '藥箱', 1, 120), mk('洗面乳', '保養品', '櫃子', 1, 300), mk('橄欖油', '調味料', '常溫', 1, 200)];
   }
 
-  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
