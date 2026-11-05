@@ -602,3 +602,10 @@ test('scanMultiPrompt: 收據模式加註略過價格且 expiry 填 null', () =>
   assert.ok(r.includes('略過價格') && r.includes('expiry 一律填 null'));
   assert.ok(r.startsWith(n.slice(0, 40)));
 });
+
+test('upcoming: 未來 14 天每日到期數', () => {
+  const mk = (name, expiry, done = false) => ({ name, expiry, done });
+  const u = HK.upcoming([mk('a', '2026-11-05'), mk('b', '2026-11-05'), mk('c', '2026-11-07'), mk('d', '2026-11-18'), mk('e', '2026-11-19'), mk('f', '2026-11-01'), mk('g', '2026-11-05', true)], '2026-11-05');
+  assert.equal(u.days.length, 14); assert.equal(u.days[0].count, 2); assert.equal(u.days[2].count, 1); assert.equal(u.days[13].count, 1);
+  assert.equal(u.overdue, 1); assert.equal(u.later, 1); assert.equal(u.days[13].date, '2026-11-18');
+});

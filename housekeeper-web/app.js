@@ -533,6 +533,15 @@
         for (const c of s.topWasted) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / tmax * 100) + '%'; i.style.background = 'var(--expired)'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); tw.append(r); }
         body.append(tw);
       }
+      const up = HK.upcoming(state.items, today(), 14);
+      if (up.days.some(d => d.count)) {
+        body.append(el('h2', '', '未來 14 天到期'));
+        const strip = el('div', 'upstrip'), um = Math.max(...up.days.map(d => d.count));
+        strip.setAttribute('role', 'img'); strip.setAttribute('aria-label', '未來 14 天每日到期數:' + up.days.filter(d => d.count).map(d => `${d.date.slice(5)} ${d.count} 項`).join('、'));
+        up.days.forEach((d, k) => { const col = el('div', 'upcol' + (k === 0 ? ' today' : '')), b = el('i'); b.style.height = d.count ? Math.max(8, d.count / um * 56) + 'px' : '2px'; b.title = `${d.date.slice(5)}:${d.count} 項` + (d.names.length ? '(' + d.names.slice(0, 5).join('、') + ')' : ''); col.append(el('em', '', d.count ? String(d.count) : ''), b, el('span', '', String(+d.date.slice(8)))); strip.append(col); });
+        body.append(strip);
+        body.append(el('p', 'note', '數字是當天到期的件數,最左邊是今天。' + (up.overdue ? `另有 ${up.overdue} 項已過期。` : '')));
+      }
       body.append(el('h2', '', '待處理的類別'));
       if (s.categories.length) { const bars = el('div', 'bars'), max = s.categories[0].count; for (const c of s.categories) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / max * 100) + '%'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); bars.append(r); } body.append(bars); }
       else body.append(el('p', 'note', '目前沒有待處理的物品。'));

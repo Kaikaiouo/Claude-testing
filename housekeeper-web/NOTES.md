@@ -77,8 +77,10 @@
 - 2026-11-05 約 21:00(UTC;台灣 11-06 約 05:00):已處理紀錄改依處理時間新到舊排序、預設只顯示 20 筆(「顯示全部」),並新增「清除 90 天前的紀錄(N)」(core.js 的 sortDone/pruneDone + 測試;無 doneAt 的舊資料與未處理者保留;可復原)。57 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 49,capabilities 沿用)。
 - 2026-11-05 約 16:00(UTC;台灣 11-06 約 00:00):「一次新增多項」對話框新增「拍照辨識多件商品」(core.js 的 scanMultiPrompt/parseScanMulti/scanToBulkText + 測試:一張照片最多 15 項,辨識結果轉成批次文字行加到文字框,讓使用者檢查後再加入;沒看到日期的沿用品名估算並標估算;無 sample 能力時隱藏)。58 個測試通過,400/1280 寬度(mock sample)無橫向捲動、無 JS 錯誤。已發布(版本 50,capabilities 沿用)。
 - 2026-11-05 約 15:30(UTC;台灣 11-05 約 23:30):「一次新增多項」的拍照辨識新增「這是購物收據」勾選(core.js scanMultiPrompt 新增 receipt 選項 + 測試:收據模式略過價格/稅額/袋子、還原縮寫品名、expiry 一律 null,所以全部走品名估算並標估算)。59 個測試通過,400/1280 寬度(mock sample 驗證送出的 prompt 含收據指示)無橫向捲動、無 JS 錯誤。已發布(版本 51,capabilities 沿用)。
+- 2026-11-05 約 23:00(UTC;台灣 11-06 約 07:00):統計面板新增「未來 14 天到期」小長條(core.js 的 upcoming + 測試;每日件數、今天標粗、含 aria-label 與 title 品名,已過期另計)。60 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 52,capabilities 沿用)。
 
 ## 給下次的筆記
+- page.html 結尾註解現為 v52 upcoming-14d,下次改 v53。重發若被拒說「內容相同」,微調註解即可。下一步可做:點長條篩選當天物品、PWA、條碼、家庭共用。
 - page.html 結尾註解現為 v51 receipt-mode,下次改 v52。收據模式真實 sample 未測(只有 mock)。截圖 mock 需 limits 是 async 函式、json 直接掛在 sample 物件上。重發若與被拒內容相同就微調註解。PWA、條碼、家庭共用仍待。
 - page.html 結尾註解現為 v50 scan-multi,下次改 v51。多件辨識真實 sample 未測(只有 mock);之後可加收據專用提示。發布若被拒,read 線上版後原樣再發一次即可。
 - page.html 結尾註解現為 v49 history-prune,下次改 v50。歷史清除固定 90 天,若要可調可放設定。PWA、條碼、家庭共用仍待。
