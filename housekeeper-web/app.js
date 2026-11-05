@@ -488,6 +488,7 @@
       for (const [v, l] of [[String(s.activeCount), '待處理'], [String(s.doneCount), '已處理'], [s.wasteRate === null ? '—' : Math.round(s.wasteRate * 100) + '%', '浪費率']]) { const d = el('div'); d.append(el('b', '', v), el('span', '', l)); big.append(d); }
       body.append(big);
       body.append(el('p', 'note', s.doneCount ? `已處理的 ${s.doneCount} 項中,${s.used} 項在到期前處理、${s.wasted} 項是過期後才處理。` : '浪費率 = 過期後才處理的比例,處理過物品後才會出現。'));
+      if (s.cleanDays !== null) body.append(el('p', 'note', s.cleanDays === 0 ? (s.lastWasted ? '今天有東西過期才處理,明天重新累積無浪費的天數。' : '今天開始累積無浪費的天數。') : `已連續 ${s.cleanDays} 天沒有浪費${s.lastWasted ? '(自上次過期才處理起算)' : ''},繼續保持!`));
       if (s.doneCount) {
         body.append(el('h2', '', '最近 4 週處理'));
         const wk = el('div', 'bars'), wmax = Math.max(1, ...s.weeks.map(w => w.used + w.wasted));

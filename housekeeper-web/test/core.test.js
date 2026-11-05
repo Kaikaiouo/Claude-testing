@@ -553,3 +553,14 @@ test('shopBoughtToItems:已買項目一次轉成庫存物品,未買留在清單'
   assert.strictEqual(r.moved.length, 1);
   assert.strictEqual(HK.shopBoughtToItems(r.shopping, T).items.length, 0);
 });
+
+test('stats.cleanDays:距最近一次浪費的天數;沒浪費過則自最早處理日起算', () => {
+  const T = '2026-11-05', at = d => new Date(d + 'T12:00:00').getTime();
+  const mk = (o, d, name) => ({ id: name, name, done: true, outcome: o, doneAt: at(d), expiry: '2026-01-01', category: '其他', location: '冷藏', quantity: 1 });
+  assert.strictEqual(HK.stats([], T).cleanDays, null);
+  assert.strictEqual(HK.stats([{ id: 'x', name: 'x', done: true, expiry: T }], T).cleanDays, null);
+  const a = HK.stats([mk('used', '2026-11-01', 'a'), mk('wasted', '2026-11-02', 'b'), mk('used', '2026-11-04', 'c')], T);
+  assert.strictEqual(a.cleanDays, 3); assert.strictEqual(a.lastWasted, true);
+  const b = HK.stats([mk('used', '2026-10-29', 'a')], T);
+  assert.strictEqual(b.cleanDays, 7); assert.strictEqual(b.lastWasted, false);
+});

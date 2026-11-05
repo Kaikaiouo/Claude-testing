@@ -205,7 +205,16 @@
       if (ago < 0 || w > 3) continue;
       weeks[3 - w][i.outcome === 'wasted' ? 'wasted' : 'used']++;
     }
-    return { topWasted, weeks, activeCount: active.length, doneCount: done.length, wasted, used: done.length - wasted,
+    // 連續幾天沒有浪費:自最近一次 wasted 的處理日起算;從沒浪費過則自最早一筆處理日起算(無處理紀錄 → null)
+    const dayOf = i => todayStr(new Date(i.doneAt));
+    const stamped = done.filter(i => Number.isFinite(i.doneAt));
+    let cleanDays = null;
+    if (stamped.length) {
+      const bad = stamped.filter(i => i.outcome === 'wasted').map(dayOf).sort().pop();
+      const first = stamped.map(dayOf).sort()[0];
+      cleanDays = Math.max(0, daysLeft(bad || first, today) * -1);
+    }
+    return { cleanDays, lastWasted: stamped.some(i => i.outcome === 'wasted'), topWasted, weeks, activeCount: active.length, doneCount: done.length, wasted, used: done.length - wasted,
       wasteRate: done.length ? wasted / done.length : null, categories: cats,
       expiredNow: active.filter(i => daysLeft(i.expiry, today) < 0).length };
   }

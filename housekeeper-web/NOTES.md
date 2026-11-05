@@ -71,8 +71,10 @@
 
 - 2026-11-04 約 09:00(UTC;台灣約 17:00):無障礙補強(index.html:減少動態偏好時連 animation/scroll-behavior 一併停用;forced-colors 高對比模式下焦點框與卡片邊框;prefers-contrast: more 加強邊線與說明文字對比)。53 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 45,capabilities 沿用)。
 - 2026-11-04 約 13:00(UTC;台灣約 21:00):購物清單新增「已買的全部放入清單(N)」(core.js 的 shopBoughtToItems + 測試:已勾買好的一次轉成庫存物品,到期日依類別估算並標為估算,未買的留在清單;可復原)。54 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 46,capabilities 沿用)。
+- 2026-11-05 約 12:00(UTC;台灣約 20:00):統計面板新增「連續 N 天沒有浪費」(core.js stats 新增 cleanDays/lastWasted + 測試;自最近一次過期才處理起算,從未浪費則自最早處理日;舊資料無 doneAt 者不計)。55 個測試通過,400/1280 寬度無橫向捲動、無 JS 錯誤。已發布(版本 47,capabilities 沿用)。
 
 ## 給下次的筆記
+- page.html 結尾註解現為 v47 clean-streak,下次改 v48。發布若被拒,內容若與讀到的線上版一致,原樣再發一次即可通過。本機若為 detached HEAD 先 git checkout -B main origin/main。
 - page.html 結尾註解現為 v41,下次改 v42。page.html 由 index.html 以腳本產生(取 head/body 內容、去掉 charset/viewport meta、結尾加註解)。截圖腳本請用 scratchpad 路徑,勿用 \$TMPDIR(會產生 undefined/ 資料夾)。一次新增多項已支援到期日,已支援 @位置;尚不支援購買日語法。
 - 截圖腳本的 TMPDIR 在這環境是空的,請用 scratchpad 路徑;#fab 在 file:// 下 offsetParent 為 null 但 click() 可用。
 - 視覺:新增 token --glass/--card-line/--ring/--elev1/2/--bgfx(淺深色皆有)。字型在沙盒截圖是 fallback,線上為 Noto Sans TC/Zen Maru。可再做:空狀態插圖、統計圖表配色微調、購物清單面板質感。
