@@ -341,7 +341,7 @@
       if (!(window.claude && window.claude.use)) return;
       const sm = await window.claude.use('sample'); if (!sm) return;
       const lim = await sm.limits().catch(() => null); if (!lim || !lim.images) return;
-      sampleFn = sm; $('scanFile').accept = lim.images.mediaTypes.join(','); $('scanBox').hidden = false; render();
+      sampleFn = sm; $('scanFile').accept = lim.images.mediaTypes.join(','); $('scanBox').hidden = false; $('bulkScanBox').hidden = false; $('bulkScanFile').accept = lim.images.mediaTypes.join(','); render();
     } catch (e) { /* 沒有就維持手動輸入 */ }
   }
   let thumbUrl = null;
@@ -362,6 +362,21 @@
       msg.textContent = r.readDate ? '已填入,請對照包裝確認日期。' : '包裝日期看不到,到期日用類別估算,請自行確認。';
     } catch (err) { msg.textContent = SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
     finally { scanCtl = null; btn.textContent = '📷 拍照/選圖辨識'; }
+  };
+
+  let bulkCtl = null;
+  $('bulkScan').onclick = () => { if (bulkCtl) { bulkCtl.abort(); return; } $('bulkScanFile').click(); };
+  $('bulkScanFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f || !sampleFn) return;
+    const msg = $('bulkScanMsg'), btn = $('bulkScan'); bulkCtl = new AbortController(); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在看照片裡有哪些東西…';
+    try {
+      const raw = await sampleFn.json(HK.scanMultiPrompt(today()), { images: [f], modelTier: 'quick', signal: bulkCtl.signal });
+      const list = HK.parseScanMulti(raw, today());
+      if (!list.length) { msg.textContent = '沒有認出商品,請換一張或手動輸入。'; return; }
+      const cur = $('bulkText').value.trim(); $('bulkText').value = (cur ? cur + '\n' : '') + HK.scanToBulkText(list); bulkSync();
+      msg.textContent = `認出 ${list.length} 項,已加到上方文字框,請檢查後再加入(沒看到日期的會用品名估算)。`;
+    } catch (err) { msg.textContent = SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
+    finally { bulkCtl = null; btn.textContent = '📷 拍照辨識多件商品'; }
   };
 
   // 快到期食材想菜色(沿用 sample;只送品名與剩餘天數)
@@ -390,7 +405,7 @@
   // 一次新增多項
   const bulkSync = () => { const r = HK.parseBulk($('bulkText').value, today()); $('bulkPrev').textContent = r.items.length ? `將加入 ${r.items.length} 項:` + r.items.slice(0, 8).map(i => `${i.name}×${i.quantity}(${i.category}/${i.location})`).join('、') + (r.items.length > 8 ? '…' : '') + (r.skipped.length ? `;略過 ${r.skipped.length} 行無法辨識` : '') : ''; $('bulkSave').disabled = !r.items.length; };
   $('bulkFromForm').onclick = () => { closeForm(); $('bulkOpen').onclick(); };
-  $('bulkOpen').onclick = () => { $('bulkText').value = ''; bulkSync(); $('bulkWrap').hidden = false; setTimeout(() => $('bulkText').focus(), 50); };
+  $('bulkOpen').onclick = () => { $('bulkText').value = ''; $('bulkScanMsg').textContent = ''; bulkSync(); $('bulkWrap').hidden = false; setTimeout(() => $('bulkText').focus(), 50); };
   $('bulkText').oninput = bulkSync;
   $('bulkCancel').onclick = () => { $('bulkWrap').hidden = true; };
   $('bulkWrap').addEventListener('click', e => { if (e.target === $('bulkWrap')) $('bulkWrap').hidden = true; });

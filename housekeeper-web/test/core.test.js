@@ -582,3 +582,16 @@ test('sortDone 依處理時間新到舊;pruneDone 只清舊的已處理紀錄', 
   assert.deepStrictEqual(r.kept.map(i => i.id), ['b', 'c', 'e']);
   assert.strictEqual(HK.pruneDone(items, 400, '2026-11-05').removed.length, 0);
 });
+
+test('parseScanMulti / scanToBulkText:多件辨識轉成批次新增文字', () => {
+  const raw = [{ name: '鮮奶', category: '乳製品', location: '冷藏', expiry: '2026-11-20', quantity: 2 }, { name: '青江菜', category: '蔬菜', location: '冷藏', expiry: null }, { name: '' }, 'x'];
+  const list = HK.parseScanMulti(raw, T);
+  assert.equal(list.length, 2);
+  assert.deepEqual(HK.parseScanMulti({ items: raw }, T).map(r => r.name), ['鮮奶', '青江菜']);
+  assert.deepEqual(HK.parseScanMulti('壞掉', T), []);
+  assert.equal(HK.parseScanMulti(new Array(30).fill({ name: 'a' }), T).length, 15);
+  const txt = HK.scanToBulkText(list);
+  const b = HK.parseBulk(txt, T).items;
+  assert.equal(b.length, 2); assert.equal(b[0].quantity, 2); assert.equal(b[0].expiry, '2026-11-20'); assert.equal(b[0].location, '冷藏');
+  assert.equal(b[1].estimated, true);
+});
