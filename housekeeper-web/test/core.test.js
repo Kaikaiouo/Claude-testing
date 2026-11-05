@@ -564,3 +564,9 @@ test('stats.cleanDays:距最近一次浪費的天數;沒浪費過則自最早處
   const b = HK.stats([mk('used', '2026-10-29', 'a')], T);
   assert.strictEqual(b.cleanDays, 7); assert.strictEqual(b.lastWasted, false);
 });
+
+test('titleFor 把需要注意的數量放在分頁標題', () => {
+  assert.strictEqual(HK.titleFor({ expired: 0, urgent: 0, soon: 3, ok: 5 }), 'housekeeper');
+  assert.strictEqual(HK.titleFor({ expired: 1, urgent: 2, soon: 0, ok: 0 }), '(3) housekeeper');
+  assert.strictEqual(HK.titleFor({ expired: 150, urgent: 0 }), '(99+) housekeeper');
+});
