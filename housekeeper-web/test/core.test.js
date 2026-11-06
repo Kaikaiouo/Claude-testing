@@ -609,3 +609,9 @@ test('upcoming: 未來 14 天每日到期數', () => {
   assert.equal(u.days.length, 14); assert.equal(u.days[0].count, 2); assert.equal(u.days[2].count, 1); assert.equal(u.days[13].count, 1);
   assert.equal(u.overdue, 1); assert.equal(u.later, 1); assert.equal(u.days[13].date, '2026-11-18');
 });
+
+test('filterItems 可依到期日篩選', () => {
+  const m = (name, expiry) => ({ name, category: '其他', location: '冷藏', expiry });
+  const r = HK.filterItems([m('a', '2026-11-08'), m('b', '2026-11-09')], { expiry: '2026-11-08' });
+  assert.deepEqual(r.map(i => i.name), ['a']);
+});

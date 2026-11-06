@@ -140,9 +140,9 @@
     return sortByExpiry(items);
   }
 
-  function filterItems(items, { location = '', query = '', status: st = '', today: t = null } = {}) {
+  function filterItems(items, { location = '', query = '', status: st = '', today: t = null, expiry = '' } = {}) {
     const q = query.trim().toLowerCase();
-    return items.filter(i => (!location || i.location === location) && (!st || !t || status(daysLeft(i.expiry, t)) === st) && (!q || i.name.toLowerCase().includes(q) || i.category.includes(q) || (i.notes || '').toLowerCase().includes(q)));
+    return items.filter(i => (!location || i.location === location) && (!st || !t || status(daysLeft(i.expiry, t)) === st) && (!expiry || i.expiry === expiry) && (!q || i.name.toLowerCase().includes(q) || i.category.includes(q) || (i.notes || '').toLowerCase().includes(q)));
   }
 
   function summarize(items, today) {

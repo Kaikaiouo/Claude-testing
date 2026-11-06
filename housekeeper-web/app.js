@@ -44,7 +44,7 @@
   }
 
   // ---------- 清單 ----------
-  let histAll = false, locFilter = '', query = '', stFilter = '', sortMode = 'expiry';
+  let histAll = false, locFilter = '', query = '', stFilter = '', dayFilter = '', sortMode = 'expiry';
   try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
   const STATUS_LABEL = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
 
@@ -100,6 +100,7 @@
     const bn = $('banner'); bn.textContent = '';
     if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const fz = HK.freezeSoon(state.items, t); if (fz.changed.length) { const fb = el('button', 'ghost', `可冷凍的先冷凍(${fz.changed.length})`); fb.type = 'button'; fb.title = '2 天內到期、尚未開封的肉/蔬果/乳製品移到冷凍(到期日為保守估算)'; fb.onclick = () => { const r = HK.freezeSoon(state.items, t); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項移到冷凍(估算)`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', fb); } const cp = el('button', 'ghost', '複製清單'); cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); if (sampleFn && HK.recipeCandidates(state.items, t).length) { const rc = el('button', 'ghost', '想菜色'); rc.type = 'button'; rc.title = '請 Claude 用快到期的食材想幾道家常菜(會使用你的 Claude 額度)'; rc.onclick = openRecipes; b.append(' ', rc); } bn.append(b); }
     if (HK.backupDue(lsGet('hk-backup'), lsGet('hk-backup-since'), state.items.length, t)) { const b = el('div', 'banner', '已經一個月沒備份了,下載一份備份檔比較安心。'); const go = el('button', 'ghost', '現在備份'); go.type = 'button'; go.onclick = () => $('sBackup').click(); const later = el('button', 'ghost', '稍後再說'); later.type = 'button'; later.onclick = () => { lsSet('hk-backup-since', t); render(); }; b.append(' ', go, ' ', later); bn.append(b); }
+    if (dayFilter) { const b = el('div', 'banner', `只看 ${dayFilter.slice(5)} 到期的物品`), x = el('button', 'ghost', '取消篩選'); x.type = 'button'; x.onclick = () => { dayFilter = ''; render(); }; b.append(' ', x); bn.append(b); }
     // 位置篩選
     const chips = $('chips'); chips.textContent = '';
     for (const name of ['全部', ...HK.LOCATIONS.map(l => l.name)]) {
@@ -110,14 +111,14 @@
     }
     // 清單
     const list = $('list'); list.textContent = '';
-    const shown = HK.sortItems(HK.filterItems(active, { location: locFilter, query, status: stFilter, today: t }), sortMode);
+    const shown = HK.sortItems(HK.filterItems(active, { location: locFilter, query, status: stFilter, today: t, expiry: dayFilter }), sortMode);
     if (!shown.length) {
       const li = el('li', 'empty');
       if (!state.items.length) {
         li.append(emptyArt('new'), el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
         const a = el('div', 'actions'), add = el('button', 'primary', '新增第一個物品'), sample = el('button', '', '載入範例看看');
         add.onclick = () => openForm(null); sample.onclick = loadSample; a.append(add, sample); li.append(a);
-      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
+      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品,可取消日期篩選。` : stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
       list.append(li);
     } else for (const i of shown) list.append(rowFor(i, 'active'));
     // 已處理
@@ -538,9 +539,9 @@
         body.append(el('h2', '', '未來 14 天到期'));
         const strip = el('div', 'upstrip'), um = Math.max(...up.days.map(d => d.count));
         strip.setAttribute('role', 'img'); strip.setAttribute('aria-label', '未來 14 天每日到期數:' + up.days.filter(d => d.count).map(d => `${d.date.slice(5)} ${d.count} 項`).join('、'));
-        up.days.forEach((d, k) => { const col = el('div', 'upcol' + (k === 0 ? ' today' : '')), b = el('i'); b.style.height = d.count ? Math.max(8, d.count / um * 56) + 'px' : '2px'; b.title = `${d.date.slice(5)}:${d.count} 項` + (d.names.length ? '(' + d.names.slice(0, 5).join('、') + ')' : ''); col.append(el('em', '', d.count ? String(d.count) : ''), b, el('span', '', String(+d.date.slice(8)))); strip.append(col); });
+        up.days.forEach((d, k) => { const col = el(d.count ? 'button' : 'div', 'upcol' + (k === 0 ? ' today' : '')), b = el('i'); if (d.count) { col.type = 'button'; col.setAttribute('aria-label', `${d.date.slice(5)} 到期 ${d.count} 項,點一下只看這天`); col.onclick = () => { dayFilter = d.date; $('statWrap').hidden = true; render(); }; } b.style.height = d.count ? Math.max(8, d.count / um * 56) + 'px' : '2px'; b.title = `${d.date.slice(5)}:${d.count} 項` + (d.names.length ? '(' + d.names.slice(0, 5).join('、') + ')' : ''); col.append(el('em', '', d.count ? String(d.count) : ''), b, el('span', '', String(+d.date.slice(8)))); strip.append(col); });
         body.append(strip);
-        body.append(el('p', 'note', '數字是當天到期的件數,最左邊是今天。' + (up.overdue ? `另有 ${up.overdue} 項已過期。` : '')));
+        body.append(el('p', 'note', '數字是當天到期的件數,最左邊是今天,點一下可在清單只看那天。' + (up.overdue ? `另有 ${up.overdue} 項已過期。` : '')));
       }
       body.append(el('h2', '', '待處理的類別'));
       if (s.categories.length) { const bars = el('div', 'bars'), max = s.categories[0].count; for (const c of s.categories) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / max * 100) + '%'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); bars.append(r); } body.append(bars); }
