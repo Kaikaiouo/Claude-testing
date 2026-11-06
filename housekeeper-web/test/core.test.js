@@ -615,3 +615,15 @@ test('filterItems 可依到期日篩選', () => {
   const r = HK.filterItems([m('a', '2026-11-08'), m('b', '2026-11-09')], { expiry: '2026-11-08' });
   assert.deepEqual(r.map(i => i.name), ['a']);
 });
+
+test('cleanState:丟掉壞項目、補預設欄位、非預期結構回傳 null', () => {
+  assert.strictEqual(HK.cleanState(null), null);
+  assert.strictEqual(HK.cleanState({ items: 'x' }), null);
+  const r = HK.cleanState({ items: [null, 5, { id: 'a', name: '蛋', expiry: '2026-11-20' }, { id: 'b', name: '', expiry: '2026-11-20' }, { id: 'c', name: '壞日期', expiry: 'abc' }], shopping: [null, { name: '米' }] });
+  assert.strictEqual(r.dropped, 4);
+  assert.strictEqual(r.state.items.length, 1);
+  assert.strictEqual(r.state.items[0].quantity, 1);
+  assert.strictEqual(r.state.items[0].location, '冷藏');
+  assert.strictEqual(r.state.shopping.length, 1);
+  assert.deepStrictEqual(HK.cleanState({ items: [] }).state.shopping, []);
+});

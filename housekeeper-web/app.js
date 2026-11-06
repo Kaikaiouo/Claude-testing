@@ -6,7 +6,7 @@
 
   // ---------- 儲存 ----------
   const LS = 'housekeeper.state.v1';
-  function loadLocal() { try { const s = JSON.parse(localStorage.getItem(LS)); if (s && Array.isArray(s.items)) return s; } catch (e) { /* 略過 */ } return null; }
+  function loadLocal() { try { const s = JSON.parse(localStorage.getItem(LS)); const c = HK.cleanState(s); if (c) return c.state; } catch (e) { /* 略過 */ } return null; }
   function saveLocal() { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) { /* 隱私模式等:略過 */ } }
 
   let state = loadLocal() || DEFAULT();
@@ -36,7 +36,8 @@
         const remote = snap.exists ? snap.data() : null;
         if (snap.metadata && snap.metadata.hasPendingWrites) return;
         const win = HK.pickNewer(state, remote);
-        if (win === remote && remote) { state = JSON.parse(JSON.stringify(remote)); state.settings = Object.assign(DEFAULT().settings, state.settings); if (!Array.isArray(state.shopping)) state.shopping = []; saveLocal(); render(); setSync('已同步到雲端'); }
+        const rc = remote && HK.cleanState(JSON.parse(JSON.stringify(remote)));
+        if (win === remote && rc) { state = rc.state; state.settings = Object.assign(DEFAULT().settings, state.settings); if (!Array.isArray(state.shopping)) state.shopping = []; saveLocal(); render(); setSync('已同步到雲端'); }
         else if (!remote && state.updatedAt) { dirty = true; flush(); }
         else setSync('已同步到雲端');
       }, () => setSync('雲端不可用,資料保存在這個裝置'));

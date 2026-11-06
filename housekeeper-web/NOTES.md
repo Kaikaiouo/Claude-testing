@@ -127,3 +127,4 @@
 - page.html 結尾註解現為 v45 a11y,下次改 v46。發布前必須先 read 線上版(core.js、app.js)才不會被拒;本機若為 detached HEAD 先 git checkout -B main origin/main。
 
 - page.html 結尾註解現為 v46 shop-all-bought,下次改 v47。發布流程:先 read 線上版,若內容相同被拒就微調結尾註解再發。
+- 2026-11-06 約 13:00(UTC;台灣約 21:00):資料防呆——讀入本機/雲端資料時丟掉壞掉的項目(core.js 的 cleanState + 測試:非物件、缺名稱/id、日期無效;缺欄位補預設),雲端資料結構異常時保留本機資料不覆蓋。使用者尚未回覆 M4 問題,維持小幅品質改進。62 個測試通過,400/1280 寬度(以損毀 localStorage 驗證)無橫向捲動、無 JS 錯誤。已發布(版本 54,capabilities 沿用)。
