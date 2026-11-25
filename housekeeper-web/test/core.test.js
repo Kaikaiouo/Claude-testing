@@ -627,3 +627,23 @@ test('cleanState:丟掉壞項目、補預設欄位、非預期結構回傳 null'
   assert.strictEqual(r.state.shopping.length, 1);
   assert.deepStrictEqual(HK.cleanState({ items: [] }).state.shopping, []);
 });
+
+test('syncAction:雲端較新採用、本機較新補傳、空的本機不覆蓋雲端', () => {
+  const st = (updatedAt, n) => ({ updatedAt, items: Array.from({ length: n }, (_, k) => ({ id: 'i' + k, name: 'a', expiry: '2026-12-01' })), shopping: [] });
+  assert.strictEqual(HK.syncAction(st(1, 1), st(2, 1)), 'adopt');
+  assert.strictEqual(HK.syncAction(st(3, 1), st(2, 1)), 'push');
+  assert.strictEqual(HK.syncAction(st(2, 1), st(2, 1)), 'keep');
+  assert.strictEqual(HK.syncAction(st(3, 0), st(2, 4)), 'keep');
+  assert.strictEqual(HK.syncAction(st(1, 1), null), 'push');
+  assert.strictEqual(HK.syncAction(st(0, 0), null), 'keep');
+  assert.strictEqual(HK.syncAction(st(1, 1), { updatedAt: 9, items: 'broken' }), 'keep');
+});
+
+test('adoptState:同 id 物件就地更新、多出的欄位清掉、新增與刪除照雲端', () => {
+  const a = { id: 'a', name: '舊', openedAt: '2026-11-01' }, gone = { id: 'g', name: 'x' };
+  const r = HK.adoptState({ items: [a, gone], shopping: [] }, { updatedAt: 5, items: [{ id: 'a', name: '新' }, { id: 'b', name: 'y' }], shopping: [] });
+  assert.strictEqual(r.items[0], a);
+  assert.deepStrictEqual(a, { id: 'a', name: '新' });
+  assert.deepStrictEqual(r.items.map(i => i.id), ['a', 'b']);
+  assert.strictEqual(r.updatedAt, 5);
+});

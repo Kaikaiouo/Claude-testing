@@ -11,7 +11,7 @@
 
   let state = loadLocal() || DEFAULT();
   state.settings = Object.assign(DEFAULT().settings, state.settings); if (!Array.isArray(state.shopping)) state.shopping = [];
-  let cloud = null, cloudDoc = null, writing = false, dirty = false, timer = null, syncMsg = '已儲存在這個裝置';
+  let cloud = null, cloudDoc = null, failed = false, writing = false, dirty = false, timer = null, syncMsg = '已儲存在這個裝置';
 
   function setSync(t) { syncMsg = t; $('sync').textContent = t; }
   function commit() {
@@ -21,8 +21,8 @@
   async function flush() {
     if (writing || !dirty || !cloudDoc) return;
     writing = true; dirty = false;
-    try { await cloudDoc.set(JSON.parse(JSON.stringify(state))); setSync('已同步到雲端'); }
-    catch (e) { setSync('雲端同步失敗,資料仍保存在這個裝置'); }
+    try { await cloudDoc.set(JSON.parse(JSON.stringify(state))); failed = false; setSync('已同步到雲端'); }
+    catch (e) { failed = true; setSync('雲端同步失敗,資料仍保存在這個裝置'); }
     writing = false; if (dirty) flush();
   }
   async function initCloud() {
@@ -35,10 +35,9 @@
       cloudDoc.onSnapshot(snap => {
         const remote = snap.exists ? snap.data() : null;
         if (snap.metadata && snap.metadata.hasPendingWrites) return;
-        const win = HK.pickNewer(state, remote);
-        const rc = remote && HK.cleanState(JSON.parse(JSON.stringify(remote)));
-        if (win === remote && rc) { state = rc.state; state.settings = Object.assign(DEFAULT().settings, state.settings); if (!Array.isArray(state.shopping)) state.shopping = []; saveLocal(); render(); setSync('已同步到雲端'); }
-        else if (!remote && state.updatedAt) { dirty = true; flush(); }
+        const act = HK.syncAction(state, remote);
+        if (act === 'adopt') { state = HK.adoptState(state, HK.cleanState(JSON.parse(JSON.stringify(remote))).state); state.settings = Object.assign(DEFAULT().settings, state.settings); saveLocal(); render(); setSync('已同步到雲端'); }
+        else if (act === 'push') { dirty = true; flush(); }
         else setSync('已同步到雲端');
       }, () => setSync('雲端不可用,資料保存在這個裝置'));
     } catch (e) { /* 沒有雲端:維持本機模式 */ }
@@ -90,8 +89,9 @@
     return li;
   }
 
+  let renderedDay = '';
   function render() {
-    const t = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
+    const t = renderedDay = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
     // 摘要
     const s = HK.summarize(state.items, t), stats = $('stats'); stats.textContent = '';
     for (const k of ['expired', 'urgent', 'soon', 'ok']) { const d = el('button', 'stat ' + k); d.type = 'button'; d.setAttribute('aria-pressed', String(stFilter === k)); d.setAttribute('aria-label', `${STATUS_LABEL[k]} ${s[k]} 項,點一下只看這類`); d.append(el('b', '', String(s[k])), el('span', '', STATUS_LABEL[k])); d.onclick = () => { stFilter = stFilter === k ? '' : k; render(); }; stats.append(d); }
@@ -432,7 +432,8 @@
       if (dup) { $('formErrs').textContent = `「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`; $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }
     }
     $('fSave').dataset.dupOk = '';
-    if (editing) { Object.assign(editing, r.item, { done: editing.done, doneAt: editing.doneAt, createdAt: editing.createdAt }); delete editing.locationBeforeFreeze; delete editing.expiryBeforeFreeze; delete editing.tempCBeforeFreeze; }
+    if (editing) { if (!state.items.includes(editing)) state.items.push(editing); // 編輯途中在別台裝置被刪掉:以這次儲存為準
+      Object.assign(editing, r.item, { done: editing.done, doneAt: editing.doneAt, createdAt: editing.createdAt }); delete editing.locationBeforeFreeze; delete editing.expiryBeforeFreeze; delete editing.tempCBeforeFreeze; }
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
   };
@@ -448,8 +449,10 @@
     sel.onchange = () => { sortMode = HK.SORTS[sel.value] ? sel.value : 'expiry'; try { localStorage.setItem('hk-sort', sortMode); } catch (e) {} render(); }; }
   $('btnSettings').onclick = () => { $('sDays').value = state.settings.reminderDays; $('sHour').value = state.settings.reminderHour; $('exportMsg').textContent = ''; $('setWrap').hidden = false; };
   $('sClose').onclick = () => {
-    const d = Math.round(Number($('sDays').value)); state.settings.reminderDays = d >= 0 && d <= 60 ? d : 3; state.settings.reminderHour = +$('sHour').value;
-    $('setWrap').hidden = true; commit();
+    const d = Math.round(Number($('sDays').value)); const days = d >= 0 && d <= 60 ? d : 3, hour = +$('sHour').value;
+    $('setWrap').hidden = true;
+    if (days === state.settings.reminderDays && hour === state.settings.reminderHour) return; // 沒改就不更新時間戳,避免蓋掉雲端
+    state.settings.reminderDays = days; state.settings.reminderHour = hour; commit();
   };
   $('setWrap').addEventListener('click', e => { if (e.target === $('setWrap')) $('sClose').click(); });
   $('sSample').onclick = loadSample;
@@ -584,6 +587,12 @@
     else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openForm(null); }
   });
   $('search').addEventListener('input', e => { query = e.target.value; render(); });
+  // 頁面開著過夜:回到畫面或每分鐘檢查日期,換日就重算剩餘天數
+  const refreshDay = () => { if (renderedDay !== today()) render(); };
+  setInterval(refreshDay, 60000);
+  // 切到背景前立刻上傳尚未送出的變更;連線恢復時重試失敗的上傳
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshDay(); else if (dirty) { clearTimeout(timer); flush(); } });
+  window.addEventListener('online', () => { if (failed) { dirty = true; flush(); } });
   window.__hk = { state: () => state, commit };
   render(); initCloud(); initScan();
 })();

@@ -187,6 +187,28 @@
     return (remote.updatedAt || 0) > (local.updatedAt || 0) ? remote : local;
   }
 
+  // 收到雲端資料時該做什麼:'adopt' 採用雲端、'push' 把本機較新的資料補傳、'keep' 不動
+  // 本機是空的、雲端有資料時不自動覆蓋(新裝置可能只動過設定),寧可保守
+  function syncAction(local, remote) {
+    const size = s => ((s && s.items) || []).length + ((s && s.shopping) || []).length;
+    if (!remote) return local && local.updatedAt ? 'push' : 'keep';
+    const r = remote.updatedAt || 0, l = (local && local.updatedAt) || 0;
+    if (r > l) return cleanState(remote) ? 'adopt' : 'keep';
+    return l > r && (size(local) || !size(remote)) ? 'push' : 'keep';
+  }
+  // 採用雲端資料,但同 id 的物件沿用原本那一個(就地更新),讓開著的表單與「復原」鈕仍指向清單裡的物品
+  function adoptState(current, incoming) {
+    const reuse = (olds, news) => {
+      const m = new Map((olds || []).map(x => [x.id, x]));
+      return (news || []).map(n => {
+        const o = m.get(n.id); if (!o) return n;
+        m.delete(n.id); for (const k of Object.keys(o)) delete o[k];
+        return Object.assign(o, n);
+      });
+    };
+    return Object.assign({}, incoming, { items: reuse(current.items, incoming.items), shopping: reuse(current.shopping, incoming.shopping) });
+  }
+
   // ---- iCalendar 匯出:每個未處理物品一個全天事件 + 提前提醒 ----
   const icsEscape = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   function fold(line) {
@@ -635,7 +657,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
