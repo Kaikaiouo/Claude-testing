@@ -346,10 +346,10 @@
   $('fExpiry').addEventListener('input', () => { autoExp = ''; });
   function syncOpened() {
     const row = $('openedRow'), b = $('fOpen'), m = $('openedMsg');
-    const it = editing, od = HK.okOpenDays($('fOpenDays').value), n = it && HK.openedDays(it.category, it.location, od); row.hidden = !it || it.done || !(it.openedAt || n);
+    const it = editing, od = HK.okOpenDays($('fOpenDays').value), many = !!it && it.quantity > 1, n = it && HK.openedDays(it.category, it.location, od); row.hidden = !it || it.done || !(it.openedAt || n);
     if (row.hidden) return;
     if (it.openedAt) { b.textContent = '復原開封'; m.textContent = `${it.openedAt} 開封`; }
-    else { b.textContent = '已開封:縮短到期日'; m.textContent = `開封後約 ${n} 天內吃完${od ? '(你設定的天數)' : '(保守估計,以包裝為準)'}`; }
+    else { b.textContent = many ? '開封 1 個' : '已開封:縮短到期日'; m.textContent = `開封後約 ${n} 天內吃完${od ? '(你設定的天數)' : '(保守估計,以包裝為準)'}${many ? ',其餘的到期日不變' : ''}`; }
   }
   function syncFreeze() {
     const row = $('freezeRow'), it = editing, r = it && !it.done ? (it.locationBeforeFreeze ? { undo: true } : HK.freezeItem(it, today())) : null;
@@ -357,24 +357,36 @@
     $('fFreeze').textContent = r.undo ? '復原冷凍' : '移到冷凍保存';
     $('freezeMsg').textContent = r.undo ? `原本放${it.locationBeforeFreeze}` : `冷凍約可放 ${r.days} 天(保守估計,以食材狀態為準)`;
   }
+  // 還原/復原類的結果會「少掉」欄位(例如 locationBeforeFreeze),只用 Object.assign 蓋不掉,要整個換掉
+  const replaceItem = (it, next) => { const copy = Object.assign({}, next); for (const k of Object.keys(it)) delete it[k]; Object.assign(it, copy); };
   $('fFreeze').onclick = () => {
-    const it = editing; if (!it) return;
-    if (it.locationBeforeFreeze) { Object.assign(it, HK.unfreezeItem(it)); closeForm(); commit(); return; }
-    const r = HK.freezeItem(it, today()); if (!r) return;
-    Object.assign(it, r.item); closeForm(); commit();
-    snack(`「${it.name}」移到冷凍,到期日改為 ${it.expiry}(估算)`, '復原', () => { Object.assign(it, HK.unfreezeItem(it)); commit(); });
+    const undo = !!(editing && editing.locationBeforeFreeze), it = applyForm(); if (!it) return; // 先存下表單裡改過的內容
+    closeForm();
+    if (undo) { replaceItem(it, HK.unfreezeItem(it)); commit(); return; }
+    const r = HK.freezeItem(it, today()); if (!r) { commit(); snack(`已儲存「${it.name}」`); return; }
+    replaceItem(it, r.item); commit();
+    snack(`「${it.name}」移到冷凍,到期日改為 ${it.expiry}(估算)`, '復原', () => { replaceItem(it, HK.unfreezeItem(it)); commit(); });
   };
   $('fOpenDays').oninput = syncOpened;
   $('fOpen').onclick = () => {
-    const it = editing; if (!it) return;
-    it.openDays = HK.okOpenDays($('fOpenDays').value);
-    if (it.openedAt) { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; closeForm(); commit(); return; }
-    closeForm(); doOpen(it);
+    const undo = !!(editing && editing.openedAt), it = applyForm(); if (!it) return;
+    closeForm();
+    if (undo) { replaceItem(it, HK.unopenItem(it)); commit(); return; }
+    if (!doOpen(it)) { commit(); snack(`已儲存「${it.name}」`); }
   };
   function doOpen(it) {
-    const r = HK.openItem(it, today()); if (!r) return;
-    Object.assign(it, r.item); commit();
-    snack(r.changed ? `「${it.name}」開封,到期日改為 ${it.expiry}` : `「${it.name}」已標示開封,原到期日更早,不變`, '復原', () => { Object.assign(it, HK.unopenItem(it)); delete it.openedAt; delete it.expiryBeforeOpen; commit(); });
+    const r = HK.openOne(it, today()); if (!r) return false;
+    if (!r.rest) {
+      replaceItem(it, r.opened); commit();
+      snack(r.changed ? `「${it.name}」開封,到期日改為 ${it.expiry}` : `「${it.name}」已標示開封,原到期日更早,不變`, '復原', () => { replaceItem(it, HK.unopenItem(it)); commit(); });
+    } else {
+      replaceItem(it, r.rest); state.items.push(r.opened); commit();
+      snack(`「${it.name}」開封 1 個(${r.opened.expiry} 到期),其餘 ${it.quantity} 個不變`, '復原', () => {
+        const o = state.items.find(x => x.id === r.opened.id); if (!o || o.done) return;
+        state.items = HK.removeItem(state.items, o.id); it.quantity = Math.min(99, it.quantity + 1); commit();
+      });
+    }
+    return true;
   }
   // 拍照辨識(需 sample 能力且 images 可用,否則整個區塊隱藏)
   let sampleFn = null, scanCtl = null;
@@ -468,8 +480,21 @@
   $('addWide').onclick = () => openForm(null);
   $('fCancel').onclick = closeForm;
   $('formWrap').addEventListener('click', e => { if (e.target === $('formWrap')) closeForm(); });
+  const readForm = () => HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value, openDays: $('fOpenDays').value, openedAt: editing && editing.openedAt, expiryBeforeOpen: editing && editing.expiryBeforeOpen }, today(), editing ? editing.id : undefined);
+  // 把表單內容存進正在編輯的物品(就地更新,讓「復原」鈕仍指向同一物件)
+  function saveEdit(next) {
+    if (!state.items.includes(editing)) state.items.push(editing); // 編輯途中在別台裝置被刪掉:以這次儲存為準
+    const m = HK.applyEdit(editing, next); for (const k of Object.keys(editing)) delete editing[k]; Object.assign(editing, m);
+    return editing;
+  }
+  function applyForm() {
+    if (!editing) return null;
+    const r = readForm();
+    if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return null; }
+    return saveEdit(r.item);
+  }
   $('fSave').onclick = () => {
-    const r = HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value, openDays: $('fOpenDays').value, openedAt: editing && editing.openedAt, expiryBeforeOpen: editing && editing.expiryBeforeOpen }, today(), editing ? editing.id : undefined);
+    const r = readForm();
     if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return; }
     { const dw = HK.dateWarnings(r.item, today()), key = dw.join('|') + r.item.expiry;
       if (dw.length && $('fSave').dataset.dateOk !== key) { $('formErrs').textContent = dw.join('、') + '。確定的話再按一次儲存。'; $('fSave').dataset.dateOk = key; return; } }
@@ -478,8 +503,7 @@
       if (dup) { $('formErrs').textContent = `「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`; $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }
     }
     $('fSave').dataset.dupOk = '';
-    if (editing) { if (!state.items.includes(editing)) state.items.push(editing); // 編輯途中在別台裝置被刪掉:以這次儲存為準
-      const m = HK.applyEdit(editing, r.item); for (const k of Object.keys(editing)) delete editing[k]; Object.assign(editing, m); } // 就地更新,讓「復原」鈕仍指向同一物件
+    if (editing) saveEdit(r.item);
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
   };

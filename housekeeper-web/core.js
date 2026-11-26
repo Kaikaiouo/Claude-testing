@@ -74,6 +74,13 @@
     const m = MILK_TYPES[type]; if (!m) return null;
     return { name: type, category: '乳製品', location: m.location, openDays: m.openDays, expiry: addDays(purchase, m.shelf), estimated: true };
   }
+  // 數量多於 1 時只開封其中 1 個:拆成「開封的 1 個」與「沒開的其餘」,其餘到期日不變。
+  // splitFrom 讓「常買」統計不會把拆出來的那個算成又買一次。回傳 { opened, rest(數量 1 時為 null), changed, days } 或 null
+  function openOne(item, today, id) {
+    const r = openItem(item, today); if (!r) return null;
+    if (!(item.quantity > 1)) return { opened: r.item, rest: null, changed: r.changed, days: r.days };
+    return { opened: Object.assign(r.item, { id: id || newId(), quantity: 1, splitFrom: item.id }), rest: Object.assign({}, item, { quantity: item.quantity - 1 }), changed: r.changed, days: r.days };
+  }
   function unopenItem(item) {
     if (!item.openedAt) return item;
     const r = Object.assign({}, item, { expiry: item.expiryBeforeOpen || item.expiry }); delete r.openedAt; delete r.expiryBeforeOpen; return r;
@@ -438,6 +445,7 @@
       if (!r.item) { skipped++; continue; }
       r.item.done = !!raw.done; r.item.doneAt = raw.done && Number.isFinite(raw.doneAt) ? raw.doneAt : null;
       r.item.createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : r.item.createdAt;
+      if (typeof raw.splitFrom === 'string' && raw.splitFrom) r.item.splitFrom = raw.splitFrom.slice(0, 40);
       if (LOCATIONS.some(l => l.name === raw.locationBeforeFreeze) && parseDay(raw.expiryBeforeFreeze) !== null) { // 保留「復原冷凍」
         r.item.locationBeforeFreeze = raw.locationBeforeFreeze; r.item.expiryBeforeFreeze = raw.expiryBeforeFreeze;
         r.item.tempCBeforeFreeze = Number.isFinite(raw.tempCBeforeFreeze) ? raw.tempCBeforeFreeze : null;
@@ -557,7 +565,7 @@
   function frequentNames(items, limit = 6, minCount = 2) {
     const m = new Map();
     for (const i of items || []) {
-      const k = String(i.name || '').replace(/\s+/g, '').toLowerCase(); if (!k) continue;
+      const k = String(i.name || '').replace(/\s+/g, '').toLowerCase(); if (!k || i.splitFrom) continue;
       const e = m.get(k) || { name: i.name, n: 0, last: 0 }; e.n++;
       if ((i.createdAt || 0) >= e.last) { e.last = i.createdAt || 0; e.name = i.name; } m.set(k, e);
     }
@@ -587,7 +595,21 @@
 
   // 依品名關鍵字猜類別與常見存放位置(新增物品時的建議,使用者可改)。找不到回傳 null。
   const NAME_HINTS = [
-    // 容易被後面的字誤判的詞放最前面(例:雞蛋含「雞」、牛油果含「牛」、豬油含「豬」)
+    // 容易被後面的字誤判的詞放最前面(例:雞蛋含「雞」、牛油果含「牛」、豬油含「豬」、山藥含「藥」)
+    ['蔬菜', '冷藏', ['山藥'], 10],
+    ['蔬菜', '冷藏', ['牛蒡', '牛番茄', '牛蕃茄', '雞腿菇']],
+    ['肉類', '冷藏', ['藥燉', '藥膳'], 3],
+    ['藥品', '藥箱', ['魚油', '葉黃素']],
+    ['日用品', '櫃子', ['藥皂']],
+    // 乾貨、零食、糕餅:名字裡有肉、魚、蝦、水果、奶、蛋,但不是生鮮
+    ['其他', '常溫', ['肉鬆', '魚鬆', '肉乾', '果乾', '葡萄乾', '莓乾', '蝦味先', '牛奶糖', '牛軋糖', '糖果', '巧克力', '蛋捲', '蛋白粉', '奶粉', '麵粉', '太白粉']],
+    ['其他', '常溫', ['鳳梨酥', '太陽餅', '桃酥', '月餅'], 14],
+    ['其他', '冷藏', ['蛋餅', '茶葉蛋', '蘿蔔糕', '豆花', '愛玉', '仙草'], 3],
+    ['調味料', '常溫', ['肉桂', '蘋果醋', '蜂蜜']],
+    ['飲料', '常溫', ['果汁', '檸檬汁', '葡萄汁', '莓汁', '柳丁汁', '番茄汁', '燕麥奶', '米漿']],
+    ['乳製品', '冷藏', ['養樂多', '乳酸'], 14],
+    ['肉類', '冷藏', ['貢丸'], 3],
+    ['蔬菜', '冷藏', ['木耳', '蓮藕', '竹筍', '苦瓜', '秋葵', '四季豆', '毛豆']],
     ['水果', '冷藏', ['牛油果', '酪梨', '火龍果', '雞蛋果']],
     ['調味料', '常溫', ['豬油', '牛油', '雞粉', '雞精', '花生油', '沙拉油', '魚露', '蠔油', '蝦醬', '豆瓣', '牛肉醬', '雞湯塊']],
     ['其他', '冷凍', ['水餃', '餛飩', '湯圓', '冰淇淋', '冰棒', '雪糕', '冷凍食品', '鍋貼']],
@@ -646,7 +668,8 @@
       const dm = name.match(/^(.*?)\s*(?:到期|exp\.?)?\s*(?:(\d{4})[-\/.])?(\d{1,2})[-\/.月](\d{1,2})日?$/i);
       if (dm && dm[1].trim()) { const d = bulkDate(dm[2], dm[3], dm[4], today); if (d) { given = d; name = dm[1]; } }
       if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; }
-      else if ((m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/))) { name = m[1]; qty = +m[2]; }
+      // 緊接在英文字母後、又沒有單位的數字是品名的一部分(維他命B12、輔酵素Q10),不是數量
+      else if ((m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/)) && (m[3] || !/[A-Za-z]\d+$/.test(name))) { name = m[1]; qty = +m[2]; }
       name = name.trim();
       if (!name || /[\d]\s*[\/.\-:]\s*$|[\/.\-:]$/.test(name) || name.length > 40 || !(qty >= 1 && qty <= 99)) { skipped.push(raw); continue; }
       const key = name.replace(/\s+/g, '').toLowerCase(), prev = map.get(key);
@@ -711,7 +734,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

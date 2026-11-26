@@ -739,3 +739,38 @@ test('estimateExpiry:紀錄 > 品名天數 > 類別估算,改類別或位置就�
   const old = HK.makeItem({ name: '雞胸肉', category: '肉類', location: '冷藏', quantity: 1, purchase: '2026-11-01', expiry: '2026-11-03' }, d).item;
   assert.equal(HK.estimateExpiry('雞胸肉', '肉類', '冷藏', d, [old]), '2026-11-28');
 });
+
+test('guessCategory:台灣常見品名不被單一字誤判', () => {
+  const g = n => { const r = HK.guessCategory(n); return `${r.category}/${r.location}`; };
+  for (const n of ['山藥', '牛蒡', '牛番茄', '雞腿菇']) assert.equal(g(n), '蔬菜/冷藏', n);
+  for (const n of ['藥燉排骨', '藥膳雞']) assert.equal(g(n), '肉類/冷藏', n);
+  for (const n of ['肉鬆', '魚鬆', '豬肉乾', '芒果乾', '蝦味先', '牛奶糖', '鳳梨酥', '蛋捲']) assert.equal(g(n), '其他/常溫', n);
+  assert.equal(g('蘋果汁'), '飲料/常溫');
+  assert.equal(g('魚油'), '藥品/藥箱');
+  assert.equal(HK.guessCategory('茶葉蛋').days, 3);
+  assert.equal(HK.guessCategory('雞蛋').days, 21);
+});
+
+test('parseBulk:緊接英文字母的數字是品名,不是數量', () => {
+  const one = t => { const i = HK.parseBulk(t, '2026-11-26').items[0]; return [i.name, i.quantity]; };
+  assert.deepEqual(one('維他命B12'), ['維他命B12', 1]);
+  assert.deepEqual(one('輔酵素Q10 3瓶'), ['輔酵素Q10', 3]);
+  assert.deepEqual(one('B12 x2'), ['B12', 2]);
+  assert.deepEqual(one('可樂2'), ['可樂', 2]);
+  assert.deepEqual(one('Coke 2'), ['Coke', 2]);
+});
+
+test('openOne:數量多於 1 只開封一個,其餘到期日不變;不重複計入常買', () => {
+  const d = '2026-11-26';
+  const milk = HK.makeItem({ name: '鮮奶', category: '乳製品', location: '冷藏', quantity: 3, expiry: '2026-12-10' }, d, 'm').item;
+  const r = HK.openOne(milk, d, 'o');
+  assert.deepEqual([r.opened.id, r.opened.quantity, r.opened.expiry, r.opened.openedAt, r.opened.splitFrom], ['o', 1, '2026-12-01', d, 'm']);
+  assert.deepEqual([r.rest.id, r.rest.quantity, r.rest.expiry, r.rest.openedAt], ['m', 2, '2026-12-10', null]);
+  assert.equal(milk.quantity, 3);
+  assert.deepEqual(HK.frequentNames([r.rest, r.opened]), []);
+  assert.equal(HK.parseBackup(HK.exportBackup({ items: [r.opened], settings: {} }), d).items[0].splitFrom, 'm');
+  const single = HK.openOne(Object.assign({}, milk, { quantity: 1 }), d);
+  assert.equal(single.rest, null);
+  assert.equal(single.opened.id, 'm');
+  assert.equal(HK.openOne(r.opened, d), null);
+});
