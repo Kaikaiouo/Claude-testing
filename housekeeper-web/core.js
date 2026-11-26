@@ -310,14 +310,21 @@
     const g = recallItem(items, name, '') || guessCategory(name);
     return g ? { category: g.category, location: g.location } : {};
   }
-  // 買好後轉成物品表單的預填值。到期日(一律標為估算)依序採用:上次同樣類別與位置的保存天數、品名專屬天數、類別估算
+  // 依品名、類別、位置估算到期日:上次同樣類別與位置的保存天數 > 品名專屬天數 > 類別估算
+  function estimateExpiry(name, category, location, purchase, items = []) {
+    const h = recallItem(items, name, purchase);
+    if (h && h.expiry && h.category === category && h.location === location) return h.expiry;
+    const g = guessCategory(name);
+    return g && g.days && g.category === category && g.location === location ? addDays(purchase, g.days) : suggestExpiry(category, location, purchase).date;
+  }
+  // 買好後轉成物品表單的預填值。到期日一律標為估算
   function shopToForm(s, today, items = []) {
     // 其他/冷藏 是沒分類時的預設值(舊清單裡手動加的鮮奶也是),重新判斷,避免鮮奶被估成 30 天
     const d = s.category === '其他' && s.location === '冷藏' ? shopDefaults(s.name, items) : {};
     const category = d.category || s.category, location = d.location || s.location;
     const h = recallItem(items, s.name, today), same = !!h && h.category === category && h.location === location;
-    const g = guessCategory(s.name), l = LOCATIONS.find(x => x.name === location);
-    const expiry = same && h.expiry ? h.expiry : g && g.days && g.location === location ? addDays(today, g.days) : suggestExpiry(category, location, today).date;
+    const l = LOCATIONS.find(x => x.name === location);
+    const expiry = estimateExpiry(s.name, category, location, today, items);
     return { name: s.name, category, location, quantity: s.quantity, purchase: today, expiry, estimated: true, openDays: same ? h.openDays : '', tempC: same ? h.tempC : l && l.tempC !== null ? l.tempC : '' };
   }
 
@@ -704,7 +711,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

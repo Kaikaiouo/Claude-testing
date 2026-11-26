@@ -730,3 +730,12 @@ test('名稱記憶:忽略上次開封或移到冷凍後改過的位置與到期�
   const milk = HK.makeItem({ name: '鮮奶', category: '乳製品', location: '冷藏', quantity: 1, purchase: '2026-11-01', expiry: '2026-11-15' }, '2026-11-01').item;
   assert.strictEqual(HK.recallItem([HK.openItem(milk, '2026-11-02').item], '鮮奶', '2026-11-26').shelfDays, 14);
 });
+
+test('estimateExpiry:紀錄 > 品名天數 > 類別估算,改類別或位置就換算法', () => {
+  const d = '2026-11-26';
+  assert.equal(HK.estimateExpiry('雞胸肉', '肉類', '冷藏', d), '2026-11-29');
+  assert.equal(HK.estimateExpiry('雞胸肉', '肉類', '冷凍', d), HK.suggestExpiry('肉類', '冷凍', d).date);
+  assert.equal(HK.estimateExpiry('牛番茄', '蔬菜', '冷藏', d), HK.suggestExpiry('蔬菜', '冷藏', d).date);
+  const old = HK.makeItem({ name: '雞胸肉', category: '肉類', location: '冷藏', quantity: 1, purchase: '2026-11-01', expiry: '2026-11-03' }, d).item;
+  assert.equal(HK.estimateExpiry('雞胸肉', '肉類', '冷藏', d, [old]), '2026-11-28');
+});

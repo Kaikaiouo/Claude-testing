@@ -90,15 +90,20 @@
     return li;
   }
 
+  // 重繪會換掉按鈕:記住焦點在哪一顆(data-fk),重繪後放回去,鍵盤操作才不會跳回頁首
+  const focusKey = () => (document.activeElement && document.activeElement.dataset.fk) || '';
+  function refocus(key) { const e = key && document.querySelector(`[data-fk="${CSS.escape(key)}"]`); if (e && e !== document.activeElement) e.focus({ preventScroll: true }); }
+
   let renderedDay = '';
   function render() {
+    const fk = focusKey();
     const t = renderedDay = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
     // 頁首:日期與今天最該先處理的一件
     const now = new Date(), first = HK.sortByExpiry(active)[0], firstDays = first ? HK.daysLeft(first.expiry, t) : null;
     $('todayLine').textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 星期${'日一二三四五六'[now.getDay()]}` + (first && firstDays <= 3 ? ` ・ ${firstDays < 0 ? `「${first.name}」已過期,請檢查` : `先用掉「${first.name}」`}` : '');
     // 摘要
     const s = HK.summarize(state.items, t), stats = $('stats'); stats.textContent = '';
-    for (const k of ['expired', 'urgent', 'soon', 'ok']) { const d = el('button', 'stat ' + k); d.type = 'button'; d.setAttribute('aria-pressed', String(stFilter === k)); d.setAttribute('aria-label', `${STATUS_LABEL[k]} ${s[k]} 項,點一下只看這類`); d.append(el('b', '', String(s[k])), el('span', '', STATUS_LABEL[k])); d.onclick = () => { stFilter = stFilter === k ? '' : k; render(); }; stats.append(d); }
+    for (const k of ['expired', 'urgent', 'soon', 'ok']) { const d = el('button', 'stat ' + k); d.type = 'button'; d.setAttribute('aria-pressed', String(stFilter === k)); d.setAttribute('aria-label', `${STATUS_LABEL[k]} ${s[k]} 項,點一下只看這類`); d.append(el('b', '', String(s[k])), el('span', '', STATUS_LABEL[k])); d.dataset.fk = 'stat:' + k; d.onclick = () => { stFilter = stFilter === k ? '' : k; render(); }; stats.append(d); }
     try { document.title = HK.titleFor(s); } catch (e) {}
     // 提醒橫幅:已過期,或在「提醒天數」內
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
@@ -112,7 +117,7 @@
       const n = name === '全部' ? active.length : active.filter(i => i.location === name).length;
       if (name !== '全部' && !n && locFilter !== name) continue;
       const c = el('button', 'chip', `${name} ${n}`); c.type = 'button'; c.setAttribute('aria-pressed', String((name === '全部' ? '' : name) === locFilter));
-      c.onclick = () => { locFilter = name === '全部' ? '' : name; render(); }; chips.append(c);
+      c.dataset.fk = 'chip:' + name; c.onclick = () => { locFilter = name === '全部' ? '' : name; render(); }; chips.append(c);
     }
     // 清單
     const list = $('list'); list.textContent = '';
@@ -145,6 +150,7 @@
     if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()), before = state.items; state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = before; commit(); }); }; hm.append(b); }
     $('sync').textContent = syncMsg;
     const left = state.shopping.filter(x => !x.bought).length; $('btnShop').textContent = left ? `購物清單 ${left}` : '購物清單';
+    refocus(fk);
   }
 
   // 空狀態插圖(內嵌 SVG,色彩跟隨 token)
@@ -204,6 +210,7 @@
   }
   function showShop() {
     $('snack').hidden = true;
+    const fk = focusKey();
     const body = $('shopBody'); body.textContent = '';
     const list = HK.sortShopping(state.shopping);
     const sq = $('shopQuick'); sq.textContent = ''; const sg = HK.shopSuggestions(state.items, state.shopping);
@@ -215,7 +222,7 @@
       body.append(el('h3', 'shopgrp', `${g.category}(${g.pending ? g.pending + ' 待買' : '都買好了'})`));
       const ul = el('ul', 'list shoplist');
       for (const x of g.items) {
-        const li = el('li', 'row shoprow' + (x.bought ? ' bought' : '')), lab = el('label', 'shopname'), cb = el('input'); cb.type = 'checkbox'; cb.checked = x.bought;
+        const li = el('li', 'row shoprow' + (x.bought ? ' bought' : '')), lab = el('label', 'shopname'), cb = el('input'); cb.type = 'checkbox'; cb.checked = x.bought; cb.dataset.fk = 'shop:' + x.id;
         cb.setAttribute('aria-label', `買好了:${x.name}`);
         cb.onchange = () => { x.bought = cb.checked; commit(); showShop(); };
         const t = el('span', 'nm', x.name + (x.quantity > 1 ? ` ×${x.quantity}` : '')); lab.append(cb, t); li.append(lab);
@@ -239,6 +246,7 @@
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
     $('shopWrap').hidden = false;
+    refocus(fk);
   }
   let shopFrom = null;
   $('btnShop').onclick = showShop;
@@ -257,9 +265,9 @@
   function setQuick() {
     const q = $('quick'); q.textContent = '';
     const opts = [['+3天', d => HK.addDays(d, 3)], ['+1週', d => HK.addDays(d, 7)], ['+2週', d => HK.addDays(d, 14)], ['+1個月', d => HK.addMonths(d, 1)], ['+3個月', d => HK.addMonths(d, 3)], ['+半年', d => HK.addMonths(d, 6)], ['+1年', d => HK.addMonths(d, 12)]];
-    for (const [label, fn] of opts) { const b = el('button', '', label); b.type = 'button'; b.onclick = () => { $('fExpiry').value = fn($('fPurchase').value || today()); $('fEst').checked = false; }; q.append(b); }
+    for (const [label, fn] of opts) { const b = el('button', '', label); b.type = 'button'; b.onclick = () => { $('fExpiry').value = fn($('fPurchase').value || today()); $('fEst').checked = false; autoExp = ''; }; q.append(b); }
     const est = el('button', '', '依類別估算'); est.type = 'button';
-    est.onclick = () => { const r = HK.suggestExpiry($('fCat').value, $('fLoc').value, $('fPurchase').value || today()); $('fExpiry').value = r.date; $('fEst').checked = true; };
+    est.onclick = () => { const r = HK.suggestExpiry($('fCat').value, $('fLoc').value, $('fPurchase').value || today()); $('fExpiry').value = autoExp = r.date; $('fEst').checked = true; };
     q.append(est);
   }
   setQuick();
@@ -272,7 +280,7 @@
         const p = HK.milkPreset(type, $('fPurchase').value || today());
         if (!$('fName').value.trim() || Object.keys(HK.MILK_TYPES).includes($('fName').value.trim())) $('fName').value = p.name;
         $('fCat').value = p.category; $('fLoc').value = p.location; $('fLoc').onchange();
-        $('fOpenDays').value = p.openDays; $('fExpiry').value = p.expiry; $('fEst').checked = true; syncOpened();
+        $('fOpenDays').value = p.openDays; $('fExpiry').value = p.expiry; $('fEst').checked = true; autoExp = autoOpen = ''; autoPlaced = false; syncOpened();
       };
       q.append(b);
     }
@@ -285,7 +293,10 @@
   $('qPlus').onclick = () => { $('fQty').value = Math.min(99, (+$('fQty').value || 1) + 1); };
 
   let catTouched = false;
+  // 程式自動帶入、使用者還沒改過的值:換品名時要清掉,換類別/位置/購買日時要重算
+  let autoExp = '', autoOpen = '', autoPlaced = false;
   function openForm(item, pre) {
+    autoExp = pre ? pre.expiry : ''; autoOpen = pre && pre.openDays ? String(pre.openDays) : ''; autoPlaced = false;
     catTouched = false; editing = item; $('fSave').dataset.dupOk = ''; $('fSave').dataset.dateOk = ''; $('scanThumb').hidden = true; if (!pre) shopFrom = null; $('formErrs').textContent = ''; $('formTitle').textContent = item ? '編輯物品' : '新增物品';
     $('fName').value = item ? item.name : ''; $('fCat').value = item ? item.category : HK.CATEGORIES[0]; $('fQty').value = item ? item.quantity : 1;
     $('fLoc').value = item ? item.location : '冷藏'; $('fTemp').value = item ? (item.tempC === null ? '' : item.tempC) : 4;
@@ -303,21 +314,36 @@
   // 輸入已用過的名稱:帶入上次的類別/位置/保存天數(只在新增、且到期日還沒填時)
   $('fName').addEventListener('change', () => {
     if (editing) return;
+    if (autoExp && $('fExpiry').value === autoExp) { $('fExpiry').value = ''; $('fEst').checked = false; }
+    if (autoOpen && $('fOpenDays').value === autoOpen) $('fOpenDays').value = '';
+    autoExp = autoOpen = ''; $('recallMsg').hidden = true;
     const r = HK.recallItem(state.items, $('fName').value, today(), state.shopping);
     if (!r) {
-      const g = !catTouched && HK.guessCategory($('fName').value); if (!g) return;
-      $('fCat').value = g.category; $('fLoc').value = g.location; $('fLoc').onchange && $('fLoc').onchange(); $('fCat').onchange();
+      const g = !catTouched && HK.guessCategory($('fName').value);
+      if (!g) { if (autoPlaced) { $('fCat').value = HK.CATEGORIES[0]; $('fLoc').value = '冷藏'; $('fLoc').onchange(); $('fCat').onchange(); autoPlaced = false; } syncOpened(); return; }
+      autoPlaced = true;
+      $('fCat').value = g.category; $('fLoc').value = g.location; $('fLoc').onchange(); $('fCat').onchange();
       let extra = '';
-      if (g.days && !$('fExpiry').value) { $('fExpiry').value = HK.addDays($('fPurchase').value || today(), g.days); $('fEst').checked = true; extra = `,保存約 ${g.days} 天(估算,以包裝為準)`; }
+      if (g.days && !$('fExpiry').value) { $('fExpiry').value = autoExp = HK.addDays($('fPurchase').value || today(), g.days); $('fEst').checked = true; extra = `,保存約 ${g.days} 天(估算,以包裝為準)`; }
       const m0 = $('recallMsg'); m0.textContent = `依品名猜是「${g.category}」,放${g.location}${extra}(可自行修改)`; m0.hidden = false; syncOpened(); return;
     }
-    $('fCat').value = r.category; $('fLoc').value = r.location; $('fTemp').value = r.tempC; $('fCat').onchange();
-    if (r.openDays && !$('fOpenDays').value) $('fOpenDays').value = r.openDays;
+    $('fCat').value = r.category; $('fLoc').value = r.location; $('fTemp').value = r.tempC; $('fCat').onchange(); autoPlaced = true;
+    if (r.openDays && !$('fOpenDays').value) $('fOpenDays').value = autoOpen = String(r.openDays);
     const m = $('recallMsg');
-    if (r.expiry && !$('fExpiry').value) { $('fExpiry').value = r.expiry; $('fEst').checked = true; m.textContent = `已依上次帶入(保存約 ${r.shelfDays} 天,標為估算),請對照包裝確認`; }
+    if (r.expiry && !$('fExpiry').value) { $('fExpiry').value = autoExp = r.expiry; $('fEst').checked = true; m.textContent = `已依上次帶入(保存約 ${r.shelfDays} 天,標為估算),請對照包裝確認`; }
     else m.textContent = '已依上次帶入類別與位置';
     m.hidden = false; syncOpened();
   });
+  function reestimate() {
+    if (editing || !autoExp || $('fExpiry').value !== autoExp) return;
+    const next = HK.estimateExpiry($('fName').value, $('fCat').value, $('fLoc').value, $('fPurchase').value || today(), state.items);
+    if (!next || next === autoExp) return;
+    $('fExpiry').value = autoExp = next; $('fEst').checked = true;
+    const m = $('recallMsg'); m.textContent = '到期日已依目前的類別、位置與購買日重新估算,請對照包裝確認'; m.hidden = false;
+  }
+  for (const id of ['fCat', 'fLoc']) $(id).addEventListener('change', () => { autoPlaced = false; reestimate(); });
+  $('fPurchase').addEventListener('change', reestimate);
+  $('fExpiry').addEventListener('input', () => { autoExp = ''; });
   function syncOpened() {
     const row = $('openedRow'), b = $('fOpen'), m = $('openedMsg');
     const it = editing, od = HK.okOpenDays($('fOpenDays').value), n = it && HK.openedDays(it.category, it.location, od); row.hidden = !it || it.done || !(it.openedAt || n);
@@ -379,7 +405,7 @@
       const r = HK.parseScan(raw, today());
       if (!r) { msg.textContent = '沒有認出品名,請手動輸入。'; return; }
       $('fName').value = r.name; $('fCat').value = r.category; $('fQty').value = r.quantity; $('fLoc').value = r.location; $('fTemp').value = r.tempC;
-      $('fMfg').value = r.mfg; $('fExpiry').value = r.expiry; $('fEst').checked = r.estimated; $('fCat').onchange(); syncOpened();
+      $('fMfg').value = r.mfg; $('fExpiry').value = r.expiry; $('fEst').checked = r.estimated; $('fCat').onchange(); autoExp = r.estimated ? r.expiry : ''; autoPlaced = false; syncOpened();
       msg.textContent = r.readDate ? '已填入,請對照包裝確認日期。' : '包裝日期看不到,到期日用類別估算,請自行確認。';
     } catch (err) { if (scanCtl === ctl) msg.textContent = ctl.signal.aborted ? SCAN_ERR.cancelled : SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
     finally { if (scanCtl === ctl) { scanCtl = null; btn.textContent = SCAN_LABEL; } }

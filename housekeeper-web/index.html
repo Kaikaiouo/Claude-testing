@@ -28,6 +28,7 @@
     --expired:#f08a86; --expired-bg:#3d2422; --urgent:#dfa35c; --urgent-bg:#382c1b; --soon:#cbb760; --ok:#a3ba93; color-scheme:dark; }
 
   * { box-sizing:border-box; }
+  [hidden] { display:none !important; } /* 否則 .quick、.opened 等的 display 會蓋掉 hidden */
   body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--body); font-size:15px; line-height:1.5; font-variant-numeric:tabular-nums; }
   h1, h2, h3 { text-wrap:balance; }
 
