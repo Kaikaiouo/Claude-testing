@@ -673,6 +673,19 @@ test('CSV 匯入:已處理紀錄不重複匯入,處理日保留', () => {
   assert.strictEqual(noDay.items[0].doneAt, null);
 });
 
+test('CSV 匯入:同名同位置同到期日的兩批都保留,重複匯入不翻倍', () => {
+  const mk = q => HK.makeItem({ name: '優格', quantity: q, expiry: '2026-12-10' }, '2026-11-26').item;
+  const csv = HK.toCSV([mk(1), mk(4)], '2026-11-26');
+  const fresh = HK.parseCSV(csv, '2026-11-26', []);
+  assert.deepStrictEqual(fresh.items.map(i => i.quantity), [1, 4]);
+  const again = HK.parseCSV(csv, '2026-11-26', fresh.items);
+  assert.strictEqual(again.items.length, 0);
+  assert.strictEqual(again.duplicates, 2);
+  const one = HK.parseCSV(csv, '2026-11-26', [mk(1)]);
+  assert.strictEqual(one.items.length, 1);
+  assert.strictEqual(one.duplicates, 1);
+});
+
 test('applyEdit:只改備註保留復原冷凍;改到期日才放棄', () => {
   const base = HK.makeItem({ name: '雞肉', category: '肉類', quantity: 1, expiry: '2026-11-28' }, '2026-11-26').item;
   const frozen = HK.freezeItem(base, '2026-11-26').item;

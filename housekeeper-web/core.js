@@ -374,7 +374,7 @@
     return '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
   }
 
-  // ---- CSV 匯入:讀回 toCSV 匯出的格式(或自製試算表,至少要有「名稱」「到期日」欄);逐列驗證、與現有同名同位置同到期日者略過 ----
+  // ---- CSV 匯入:讀回 toCSV 匯出的格式(或自製試算表,至少要有「名稱」「到期日」欄);逐列驗證、現有清單已有幾筆同名同位置同到期日就略過檔案裡幾筆 ----
   function parseCSVRows(text) {
     const rows = []; let row = [], cur = '', inQ = false;
     const s = String(text).replace(/^﻿/, '');
@@ -407,25 +407,21 @@
     const head = rows[0].map(h => h.trim()), col = n => head.indexOf(n);
     if (col('名稱') < 0 || col('到期日') < 0) return { ok: false, error: '這不像是 housekeeper 的 CSV(需要「名稱」和「到期日」欄)', items: [], skipped: 0, duplicates: 0 };
     const get = (r, n) => { const k = col(n); return k < 0 ? '' : String(r[k] || '').replace(/^'(?=[=+\-@\t\r])/, '').trim(); };
-    const seen = new Set(existing.filter(i => !i.done).map(i => [i.name, i.location, i.expiry].join('|')));
-    // 已處理紀錄用「筆數」比對:清單裡有幾筆同樣的,就略過檔案裡幾筆(同品項處理過多次仍會保留)
-    const doneKey = i => [i.name, i.location, i.expiry].join('|'), doneLeft = new Map();
-    for (const i of existing) if (i.done) doneLeft.set(doneKey(i), (doneLeft.get(doneKey(i)) || 0) + 1);
+    // 用「筆數」比對(待處理與已處理分開算):清單裡有幾筆同樣的,就略過檔案裡幾筆。
+    // 分兩批登記的同品項、處理過多次的紀錄都會保留;同一份檔案重複匯入不會翻倍
+    const keyOf = i => [i.name, i.location, i.expiry].join('|'), pendingLeft = new Map(), doneLeft = new Map();
+    for (const i of existing) { const m = i.done ? doneLeft : pendingLeft; m.set(keyOf(i), (m.get(keyOf(i)) || 0) + 1); }
     const items = []; let skipped = 0, duplicates = 0;
     for (const r of rows.slice(1).slice(0, 2000)) {
       const done = get(r, '已處理') === '是';
       const res = makeItem({ name: get(r, '名稱'), category: get(r, '類別'), location: get(r, '位置'), quantity: get(r, '數量') || 1, purchase: looseDate(get(r, '購買日')) || today, expiry: looseDate(get(r, '到期日')), estimated: get(r, '到期日為估算') === '是' }, today);
       if (!res.item) { skipped++; continue; }
-      const key = [res.item.name, res.item.location, res.item.expiry].join('|');
+      const key = keyOf(res.item), pool = done ? doneLeft : pendingLeft, left = pool.get(key) || 0;
+      if (left) { pool.set(key, left - 1); duplicates++; continue; }
       if (done) {
-        const left = doneLeft.get(key) || 0;
-        if (left) { doneLeft.set(key, left - 1); duplicates++; continue; }
         // 沒有處理日就留空,不要假裝是今天處理的(會灌水本週統計、打斷無浪費天數)
         const day = looseDate(get(r, '處理日')), t = parseDay(day);
         res.item.done = true; res.item.doneAt = t === null ? null : new Date(day + 'T12:00:00').getTime(); res.item.outcome = get(r, '處理結果') === '浪費' ? 'wasted' : 'used';
-      } else {
-        if (seen.has(key)) { duplicates++; continue; }
-        seen.add(key);
       }
       items.push(res.item);
     }

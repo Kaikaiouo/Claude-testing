@@ -67,22 +67,24 @@
     info.append(el('div', 'meta', `${item.location}・${item.category}`));
     info.append(el('div', 'meta', `${item.expiry.replace(/-/g, '/')} 到期${item.estimated ? '(估算)' : ''}${item.openedAt ? '・已開封' : ''}`));
     info.onclick = () => openForm(item);
+    const fkey = (btn, kind) => { btn.dataset.fk = `row:${item.id}:${kind}`; };
+    fkey(info, 'info');
     li.append(info);
     if (mode === 'done') {
       const acts = el('div', 'acts'), undo = el('button', '', '還原'), del = el('button', 'danger', '刪除');
       undo.onclick = () => { item.done = false; item.doneAt = null; delete item.outcome; commit(); };
       del.onclick = () => { if (del.dataset.arm) { removeItem(item); } else { del.dataset.arm = '1'; del.textContent = '確定?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; }, 2500); } };
-      acts.append(undo, del); li.append(acts);
+      fkey(undo, 'undo'); fkey(del, 'del'); acts.append(undo, del); li.append(acts);
     } else {
-      const d = el('button', 'done-btn', '用完'); d.title = '標記為已用完/已處理';
+      const d = el('button', 'done-btn', '用完'); d.title = '標記為已用完/已處理'; fkey(d, 'use'); d.setAttribute('aria-label', `${item.name} 用完`);
       const canOpen = !item.openedAt && HK.openedDays(item.category, item.location, item.openDays);
       d.onclick = () => { Object.assign(item, HK.finishItem(item, today()).item); commit(); offerRestock(item); };
       if (item.quantity > 1) {
-        const one = el('button', 'done-btn', '用 1 個'); one.title = `數量 ${item.quantity} → ${item.quantity - 1}`;
+        const one = el('button', 'done-btn', '用 1 個'); one.title = `數量 ${item.quantity} → ${item.quantity - 1}`; fkey(one, 'one'); one.setAttribute('aria-label', `${item.name} 用 1 個`);
         one.onclick = () => { const q = item.quantity; Object.assign(item, HK.finishItem(item, today(), { all: false }).item); commit(); snack(`「${item.name}」用掉 1 個,剩 ${item.quantity}`, '復原', () => { item.quantity = q; commit(); }); };
         const acts = el('div', 'acts'); acts.append(one, d); li.append(acts);
       } else if (canOpen) {
-        const op = el('button', 'done-btn', '開封'); op.title = `標示已開封,約 ${canOpen} 天內吃完`; op.setAttribute('aria-label', `${item.name} 標示開封`);
+        const op = el('button', 'done-btn', '開封'); op.title = `標示已開封,約 ${canOpen} 天內吃完`; op.setAttribute('aria-label', `${item.name} 標示開封`); fkey(op, 'open');
         op.onclick = () => doOpen(item);
         const acts = el('div', 'acts'); acts.append(op, d); li.append(acts);
       } else li.append(d);
@@ -92,11 +94,26 @@
 
   // 重繪會換掉按鈕:記住焦點在哪一顆(data-fk),重繪後放回去,鍵盤操作才不會跳回頁首
   const focusKey = () => (document.activeElement && document.activeElement.dataset.fk) || '';
-  function refocus(key) { const e = key && document.querySelector(`[data-fk="${CSS.escape(key)}"]`); if (e && e !== document.activeElement) e.focus({ preventScroll: true }); }
+  const byKey = (key, root = document) => (key ? root.querySelector(`[data-fk="${CSS.escape(key)}"]`) : null);
+  function refocus(key) { const e = byKey(key); if (e && e !== document.activeElement) e.focus({ preventScroll: true }); }
+  const rowsOf = list => [...list.querySelectorAll(':scope > li.row')];
+  // 焦點在某一列時,記下清單與第幾列:按鈕或整列消失(用完、開封、刪除)時才有地方可放
+  function rowFocus() {
+    const li = document.activeElement && document.activeElement.closest('#list > li.row, #histList > li.row');
+    return li ? { list: li.parentNode.id, idx: rowsOf(li.parentNode).indexOf(li), key: focusKey() } : null;
+  }
+  function refocusRow(at) {
+    if (!at) return;
+    const list = $(at.list);
+    // 順序:原本那顆按鈕 → 同一物品的列 → 遞補到原位置的那一列 → 新增按鈕
+    const rows = rowsOf(list), next = rows[Math.min(at.idx, rows.length - 1)];
+    const target = byKey(at.key, list) || byKey(at.key.replace(/:[a-z]+$/, ':info'), list) || (next && next.querySelector('.info')) || [$('addWide'), $('fab')].find(b => b.offsetParent !== null || getComputedStyle(b).display !== 'none');
+    if (target) target.focus({ preventScroll: true });
+  }
 
   let renderedDay = '';
   function render() {
-    const fk = focusKey();
+    const at = rowFocus(), fk = at ? '' : focusKey();
     const t = renderedDay = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
     // 頁首:日期與今天最該先處理的一件
     const now = new Date(), first = HK.sortByExpiry(active)[0], firstDays = first ? HK.daysLeft(first.expiry, t) : null;
@@ -147,10 +164,10 @@
     const hm = $('histMore'); hm.textContent = '';
     if (sortedDone.length > HCAP && !histAll) { const b = el('button', 'ghost', `顯示全部 ${sortedDone.length} 筆`); b.type = 'button'; b.onclick = () => { histAll = true; render(); }; hm.append(b); }
     const oldN = HK.pruneDone(state.items, 90, t).removed.length;
-    if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()), before = state.items; state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = before; commit(); }); }; hm.append(b); }
+    if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()); state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = HK.mergeItems(state.items, r.removed); commit(); }); }; hm.append(b); }
     $('sync').textContent = syncMsg;
     const left = state.shopping.filter(x => !x.bought).length; $('btnShop').textContent = left ? `購物清單 ${left}` : '購物清單';
-    refocus(fk);
+    refocus(fk); refocusRow(at);
   }
 
   // 空狀態插圖(內嵌 SVG,色彩跟隨 token)
@@ -180,7 +197,14 @@
     const box = $('snack'); box.textContent = ''; clearTimeout(snackTimer);
     box.append(el('span', '', text));
     if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => { box.hidden = true; action(); }; box.append(b); }
-    box.hidden = false; snackTimer = setTimeout(() => { box.hidden = true; }, 6000);
+    box.hidden = false; armSnack(box);
+  }
+  // 游標停在提示條上或鍵盤焦點在裡面時先不收,免得「復原」在要按的時候消失(觸控裝置的 hover 會黏住,不採計)
+  function armSnack(box) {
+    snackTimer = setTimeout(() => {
+      if (box.contains(document.activeElement) || (matchMedia('(hover:hover)').matches && box.matches(':hover'))) armSnack(box);
+      else box.hidden = true;
+    }, 6000);
   }
   // 複製文字到剪貼簿;沙盒擋住時改開一個文字框讓使用者手動複製
   async function copyText(text, label) {
@@ -241,7 +265,7 @@
       if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
       if (list.some(x => x.bought)) { const ab = el('button', 'primary', `已買的全部放入清單(${list.filter(x => x.bought).length})`); ab.type = 'button'; ab.title = '到期日依上次紀錄或品名估算,之後可再編輯';
         ab.onclick = () => { const r = HK.shopBoughtToItems(state.shopping, today(), state.items); if (!r.items.length) return; const prevShop = state.shopping; state.items.push(...r.items); state.shopping = r.shopping; commit(); showShop(); render();
-          snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = prevShop; commit(); showShop(); render(); }); };
+          snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = HK.restoreShopping(state.shopping, r.moved.map(x => ({ item: x, idx: prevShop.indexOf(x) }))); commit(); showShop(); render(); }); };
         const wa = el('div', 'btns'); wa.append(ab); body.append(wa); }
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
@@ -636,7 +660,11 @@
         if (!lastFocus.has(w)) lastFocus.set(w, document.activeElement);
         const sheet = w.querySelector('.sheet'); sheet.setAttribute('tabindex', '-1');
         setTimeout(() => { if (!w.hidden && !w.contains(document.activeElement)) { const f = [...sheet.querySelectorAll(FOCUSABLE)].filter(x => x.offsetParent !== null)[0]; (f || sheet).focus(); } }, 60);
-      } else { const p = lastFocus.get(w); lastFocus.delete(w); if (p && p.focus && document.contains(p)) p.focus(); }
+      } else {
+        let p = lastFocus.get(w); lastFocus.delete(w);
+        if (p && !document.contains(p)) p = byKey(p.dataset.fk); // 儲存後清單重畫過:找同一顆的新按鈕
+        if (p && p.focus) p.focus();
+      }
     }).observe(w, { attributes: true, attributeFilter: ['hidden'] });
   }
   document.addEventListener('keydown', e => {
