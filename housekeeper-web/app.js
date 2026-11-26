@@ -433,7 +433,7 @@
     }
     $('fSave').dataset.dupOk = '';
     if (editing) { if (!state.items.includes(editing)) state.items.push(editing); // 編輯途中在別台裝置被刪掉:以這次儲存為準
-      Object.assign(editing, r.item, { done: editing.done, doneAt: editing.doneAt, createdAt: editing.createdAt }); delete editing.locationBeforeFreeze; delete editing.expiryBeforeFreeze; delete editing.tempCBeforeFreeze; }
+      const m = HK.applyEdit(editing, r.item); for (const k of Object.keys(editing)) delete editing[k]; Object.assign(editing, m); } // 就地更新,讓「復原」鈕仍指向同一物件
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
   };
@@ -490,7 +490,7 @@
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     const msg = $('backupMsg');
     if (f.size > 5e6) { msg.textContent = '檔案太大,不像是物品清單。'; return; }
-    const r = HK.parseCSV(await f.text(), today(), state.items);
+    const r = HK.parseCSV(HK.decodeCSV(await f.arrayBuffer()), today(), state.items);
     if (!r.ok) { msg.textContent = r.error + '。'; return; }
     state.items = HK.mergeItems(state.items, r.items); commit();
     msg.textContent = `已匯入 ${r.items.length} 項物品` + (r.duplicates ? `,${r.duplicates} 項與現有清單重複而略過` : '') + (r.skipped ? `,${r.skipped} 列資料無效(需有名稱與有效到期日)` : '') + '。';
@@ -577,7 +577,7 @@
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; $('setWrap').hidden = true; $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; if (!$('setWrap').hidden) $('sClose').click(); $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
   // 桌機快捷鍵:/ 搜尋、n 新增(輸入中或對話框開著時不觸發)
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;

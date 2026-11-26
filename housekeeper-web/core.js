@@ -138,6 +138,15 @@
     };
   }
 
+  // 編輯表單儲存:next 是 makeItem 的結果。處理狀態與建立時間沿用舊的;
+  // 位置或到期日有改才放棄「復原冷凍」;開封中的物品若手動改了到期日,「復原開封」不可蓋掉新日期
+  function applyEdit(old, next) {
+    const r = Object.assign({}, old, next, { done: old.done, doneAt: old.doneAt, createdAt: old.createdAt });
+    if (next.location !== old.location || next.expiry !== old.expiry) { delete r.locationBeforeFreeze; delete r.expiryBeforeFreeze; delete r.tempCBeforeFreeze; }
+    if (r.openedAt && next.expiry !== old.expiry) r.expiryBeforeOpen = next.expiry;
+    return r;
+  }
+
   const sortByExpiry = items => [...items].sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : a.name.localeCompare(b.name)));
 
   const SORTS = { expiry: '到期日', name: '名稱', added: '最近新增' };
@@ -333,10 +342,10 @@
   // ---- CSV 匯出(Excel/Google 試算表可開;加 BOM 避免中文亂碼;開頭為 = + - @ 的欄位加單引號防公式注入)----
   function toCSV(items, today) {
     const q = v => { let s = v == null ? '' : String(v); if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const rows = [['名稱', '類別', '位置', '數量', '購買日', '到期日', '剩餘天數', '狀態', '到期日為估算', '已處理', '處理結果']];
+    const rows = [['名稱', '類別', '位置', '數量', '購買日', '到期日', '剩餘天數', '狀態', '到期日為估算', '已處理', '處理結果', '處理日']];
     for (const i of items) {
       const d = daysLeft(i.expiry, today);
-      rows.push([i.name, i.category, i.location, i.quantity, i.purchase || '', i.expiry || '', d === null ? '' : d, i.done ? '已處理' : (STATUS_TAG[status(d)] || ''), i.estimated ? '是' : '', i.done ? '是' : '', i.done ? (i.outcome === 'wasted' ? '浪費' : '用完') : '']);
+      rows.push([i.name, i.category, i.location, i.quantity, i.purchase || '', i.expiry || '', d === null ? '' : d, i.done ? '已處理' : (STATUS_TAG[status(d)] || ''), i.estimated ? '是' : '', i.done ? '是' : '', i.done ? (i.outcome === 'wasted' ? '浪費' : '用完') : '', i.done && Number.isFinite(i.doneAt) ? todayStr(new Date(i.doneAt)) : '']);
     }
     return '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
   }
@@ -356,6 +365,18 @@
     row.push(cur); if (row.some(x => x !== '')) rows.push(row);
     return rows;
   }
+  // 檔案位元組轉文字:先當 UTF-8,不合法時改試 Big5(繁中版 Excel 另存「CSV」的預設編碼)
+  function decodeCSV(bytes) {
+    for (const enc of ['utf-8', 'big5']) { try { return new TextDecoder(enc, { fatal: true }).decode(bytes); } catch (e) { /* 試下一種 */ } }
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+  // 試算表存檔常把日期改成 2026/12/1;也接受民國年(115/12/1)。認不得的原樣回傳,交給後續驗證擋下
+  function looseDate(s) {
+    const m = /^(\d{3,4})([-/.])(\d{1,2})\2(\d{1,2})$/.exec(s);
+    if (!m) return s;
+    const y = m[1].length === 3 ? +m[1] + 1911 : +m[1];
+    return `${y}-${pad(+m[3])}-${pad(+m[4])}`;
+  }
   function parseCSV(text, today, existing = []) {
     const rows = parseCSVRows(text);
     if (!rows.length) return { ok: false, error: '檔案是空的', items: [], skipped: 0, duplicates: 0 };
@@ -363,15 +384,25 @@
     if (col('名稱') < 0 || col('到期日') < 0) return { ok: false, error: '這不像是 housekeeper 的 CSV(需要「名稱」和「到期日」欄)', items: [], skipped: 0, duplicates: 0 };
     const get = (r, n) => { const k = col(n); return k < 0 ? '' : String(r[k] || '').replace(/^'(?=[=+\-@\t\r])/, '').trim(); };
     const seen = new Set(existing.filter(i => !i.done).map(i => [i.name, i.location, i.expiry].join('|')));
+    // 已處理紀錄用「筆數」比對:清單裡有幾筆同樣的,就略過檔案裡幾筆(同品項處理過多次仍會保留)
+    const doneKey = i => [i.name, i.location, i.expiry].join('|'), doneLeft = new Map();
+    for (const i of existing) if (i.done) doneLeft.set(doneKey(i), (doneLeft.get(doneKey(i)) || 0) + 1);
     const items = []; let skipped = 0, duplicates = 0;
     for (const r of rows.slice(1).slice(0, 2000)) {
       const done = get(r, '已處理') === '是';
-      const res = makeItem({ name: get(r, '名稱'), category: get(r, '類別'), location: get(r, '位置'), quantity: get(r, '數量') || 1, purchase: get(r, '購買日') || today, expiry: get(r, '到期日'), estimated: get(r, '到期日為估算') === '是' }, today);
+      const res = makeItem({ name: get(r, '名稱'), category: get(r, '類別'), location: get(r, '位置'), quantity: get(r, '數量') || 1, purchase: looseDate(get(r, '購買日')) || today, expiry: looseDate(get(r, '到期日')), estimated: get(r, '到期日為估算') === '是' }, today);
       if (!res.item) { skipped++; continue; }
       const key = [res.item.name, res.item.location, res.item.expiry].join('|');
-      if (!done && seen.has(key)) { duplicates++; continue; }
-      seen.add(key);
-      if (done) { res.item.done = true; res.item.doneAt = Date.now(); res.item.outcome = get(r, '處理結果') === '浪費' ? 'wasted' : 'used'; }
+      if (done) {
+        const left = doneLeft.get(key) || 0;
+        if (left) { doneLeft.set(key, left - 1); duplicates++; continue; }
+        // 沒有處理日就留空,不要假裝是今天處理的(會灌水本週統計、打斷無浪費天數)
+        const day = looseDate(get(r, '處理日')), t = parseDay(day);
+        res.item.done = true; res.item.doneAt = t === null ? null : new Date(day + 'T12:00:00').getTime(); res.item.outcome = get(r, '處理結果') === '浪費' ? 'wasted' : 'used';
+      } else {
+        if (seen.has(key)) { duplicates++; continue; }
+        seen.add(key);
+      }
       items.push(res.item);
     }
     return { ok: true, items, skipped, duplicates };
@@ -390,6 +421,10 @@
       if (!r.item) { skipped++; continue; }
       r.item.done = !!raw.done; r.item.doneAt = raw.done && Number.isFinite(raw.doneAt) ? raw.doneAt : null;
       r.item.createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : r.item.createdAt;
+      if (LOCATIONS.some(l => l.name === raw.locationBeforeFreeze) && parseDay(raw.expiryBeforeFreeze) !== null) { // 保留「復原冷凍」
+        r.item.locationBeforeFreeze = raw.locationBeforeFreeze; r.item.expiryBeforeFreeze = raw.expiryBeforeFreeze;
+        r.item.tempCBeforeFreeze = Number.isFinite(raw.tempCBeforeFreeze) ? raw.tempCBeforeFreeze : null;
+      }
       if (raw.done && (raw.outcome === 'wasted' || raw.outcome === 'used')) r.item.outcome = raw.outcome;
       items.push(r.item);
     }
@@ -585,7 +620,7 @@
   function parseBulk(text, today) {
     const parts = String(text || '').split(/[\n\r,，、;；]+/), map = new Map(), skipped = [];
     for (let raw of parts) {
-      raw = raw.replace(/^[\s\-•*·●\d]+[.)、]\s*/, '').replace(/^[\s\-•*·●]+/, '').trim(); if (!raw) continue;
+      raw = raw.replace(/^[\s\-•*·●]*\d+[.)](?!\d)\s*/, '').replace(/^[\s\-•*·●]+/, '').trim(); if (!raw) continue;
       let qty = 1, name = raw, m, given = null, forceLoc = null;
       const lm = name.match(/\s*[@＠]\s*(冷藏|冷凍|常溫|櫃子|藥箱)\s*/);
       if (lm) { forceLoc = lm[1]; name = (name.slice(0, lm.index) + ' ' + name.slice(lm.index + lm[0].length)).trim(); }
@@ -657,7 +692,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

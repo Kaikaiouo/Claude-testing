@@ -411,7 +411,7 @@ test('toCSV:BOM、跳脫逗號與引號、公式注入防護、狀態與處理�
   assert.ok(lines[1].startsWith('"牛奶, ""特濃""",乳製品,冷藏,1,'));
   assert.ok(lines[1].includes(',-1,已過期,'));
   assert.ok(lines[2].startsWith("'=CMD(),"));
-  assert.ok(lines[3].endsWith('已處理,,是,浪費') || lines[3].endsWith(',是,浪費'));
+  assert.ok(lines[3].endsWith(',是,浪費,')); // 最後是「處理日」,沒有 doneAt 時留空
 });
 
 test('dateWarnings:早於購買日、過期一年多、5 年後會提醒;正常日期無提醒', () => {
@@ -646,4 +646,57 @@ test('adoptState:同 id 物件就地更新、多出的欄位清掉、新增與�
   assert.deepStrictEqual(a, { id: 'a', name: '新' });
   assert.deepStrictEqual(r.items.map(i => i.id), ['a', 'b']);
   assert.strictEqual(r.updatedAt, 5);
+});
+
+test('CSV 匯入:試算表改過的日期格式與民國年', () => {
+  const r = HK.parseCSV('名稱,到期日,購買日\n牛奶,2026/12/1,2026/11/20\n醬油,116/3/5,\n怪,12/1/2026,\n怪二,2026/13/1,', '2026-11-26');
+  assert.deepStrictEqual(r.items.map(i => i.expiry), ['2026-12-01', '2027-03-05']);
+  assert.strictEqual(r.items[0].purchase, '2026-11-20');
+  assert.strictEqual(r.skipped, 2);
+});
+
+test('CSV 匯入:Big5 與 UTF-8 位元組都能解讀', () => {
+  // 「名稱」的 Big5 位元組
+  assert.strictEqual(HK.decodeCSV(new Uint8Array([0xa6, 0x57, 0xba, 0xd9])), '名稱');
+  assert.strictEqual(HK.decodeCSV(new TextEncoder().encode('名稱,到期日')), '名稱,到期日');
+});
+
+test('CSV 匯入:已處理紀錄不重複匯入,處理日保留', () => {
+  const mk = () => Object.assign(HK.makeItem({ name: '牛奶', quantity: 1, expiry: '2026-11-10' }, '2026-11-26').item, { done: true, doneAt: new Date(2026, 10, 9, 8).getTime(), outcome: 'used' });
+  const csv = HK.toCSV([mk(), mk()], '2026-11-26');
+  const fresh = HK.parseCSV(csv, '2026-11-26', []);
+  assert.strictEqual(fresh.items.length, 2);
+  assert.strictEqual(HK.todayStr(new Date(fresh.items[0].doneAt)), '2026-11-09');
+  assert.strictEqual(HK.parseCSV(csv, '2026-11-26', fresh.items).items.length, 0);
+  assert.strictEqual(HK.parseCSV(csv, '2026-11-26', [mk()]).items.length, 1);
+  const noDay = HK.parseCSV('名稱,到期日,已處理\n蛋,2026-11-01,是', '2026-11-26');
+  assert.strictEqual(noDay.items[0].doneAt, null);
+});
+
+test('applyEdit:只改備註保留復原冷凍;改到期日才放棄', () => {
+  const base = HK.makeItem({ name: '雞肉', category: '肉類', quantity: 1, expiry: '2026-11-28' }, '2026-11-26').item;
+  const frozen = HK.freezeItem(base, '2026-11-26').item;
+  const next = o => HK.makeItem(Object.assign({}, frozen, o), '2026-11-26', frozen.id).item;
+  assert.strictEqual(HK.applyEdit(frozen, next({ notes: '一半' })).locationBeforeFreeze, '冷藏');
+  assert.strictEqual(HK.applyEdit(frozen, next({ expiry: '2027-01-01' })).locationBeforeFreeze, undefined);
+});
+
+test('applyEdit:開封中手動改到期日,復原開封不蓋掉新日期', () => {
+  const base = HK.makeItem({ name: '牛奶', category: '乳製品', quantity: 1, expiry: '2026-12-20' }, '2026-11-26').item;
+  const opened = HK.openItem(base, '2026-11-26').item;
+  const edited = HK.applyEdit(opened, HK.makeItem(Object.assign({}, opened, { expiry: '2026-12-05' }), '2026-11-26', opened.id).item);
+  assert.strictEqual(HK.unopenItem(edited).expiry, '2026-12-05');
+});
+
+test('備份還原保留復原冷凍資訊', () => {
+  const base = HK.makeItem({ name: '雞肉', category: '肉類', quantity: 1, expiry: '2026-11-28', tempC: 4 }, '2026-11-26').item;
+  const frozen = HK.freezeItem(base, '2026-11-26').item;
+  const back = HK.parseBackup(HK.exportBackup({ items: [frozen], settings: {} }), '2026-11-26').items[0];
+  assert.strictEqual(HK.unfreezeItem(back).location, '冷藏');
+  assert.strictEqual(HK.unfreezeItem(back).expiry, '2026-11-28');
+});
+
+test('一次新增:行首編號會去掉,小數容量不被截斷', () => {
+  const r = HK.parseBulk('1. 牛奶\n2)蘋果\n2.5L鮮奶', '2026-11-26');
+  assert.deepStrictEqual(r.items.map(i => i.name), ['牛奶', '蘋果', '2.5L鮮奶']);
 });
