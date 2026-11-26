@@ -107,13 +107,17 @@
     const list = $(at.list);
     // 順序:原本那顆按鈕 → 同一物品的列 → 遞補到原位置的那一列 → 新增按鈕
     const rows = rowsOf(list), next = rows[Math.min(at.idx, rows.length - 1)];
-    const target = byKey(at.key, list) || byKey(at.key.replace(/:[a-z]+$/, ':info'), list) || (next && next.querySelector('.info')) || [$('addWide'), $('fab')].find(b => b.offsetParent !== null || getComputedStyle(b).display !== 'none');
+    const target = byKey(at.key, list) || byKey(at.key.replace(/:[a-z]+$/, ':info'), list) || (next && next.querySelector('.info')) || addBtn();
     if (target) target.focus({ preventScroll: true });
   }
 
   let renderedDay = '';
+  const addBtn = () => [$('addWide'), $('fab')].find(b => getComputedStyle(b).display !== 'none');
+  const focusLost = () => !document.activeElement || document.activeElement === document.body;
   function render() {
     const at = rowFocus(), fk = at ? '' : focusKey();
+    // 焦點在橫幅或「已處理」下方的按鈕上:按完按鈕可能就沒了,要另找地方放
+    const inExtra = !!(document.activeElement && document.activeElement.closest('#banner, #histMore'));
     const t = renderedDay = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
     // 頁首:日期與今天最該先處理的一件
     const now = new Date(), first = HK.sortByExpiry(active)[0], firstDays = first ? HK.daysLeft(first.expiry, t) : null;
@@ -125,9 +129,9 @@
     // 提醒橫幅:已過期,或在「提醒天數」內
     const need = active.filter(i => HK.daysLeft(i.expiry, t) <= state.settings.reminderDays), bad = active.filter(i => HK.daysLeft(i.expiry, t) < 0).length;
     const bn = $('banner'); bn.textContent = '';
-    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const fz = HK.freezeSoon(state.items, t); if (fz.changed.length) { const fb = el('button', 'ghost', `可冷凍的先冷凍(${fz.changed.length})`); fb.type = 'button'; fb.title = '2 天內到期、尚未開封的肉/蔬果/乳製品移到冷凍(到期日為保守估算)'; fb.onclick = () => { const r = HK.freezeSoon(state.items, t); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項移到冷凍(估算)`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', fb); } const cp = el('button', 'ghost', '複製清單'); cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); if (sampleFn && HK.recipeCandidates(state.items, t).length) { const rc = el('button', 'ghost', '想菜色'); rc.type = 'button'; rc.title = '請 Claude 用快到期的食材想幾道家常菜(會使用你的 Claude 額度)'; rc.onclick = openRecipes; b.append(' ', rc); } bn.append(b); }
-    if (HK.backupDue(lsGet('hk-backup'), lsGet('hk-backup-since'), state.items.length, t)) { const b = el('div', 'banner', '已經一個月沒備份了,下載一份備份檔比較安心。'); const go = el('button', 'ghost', '現在備份'); go.type = 'button'; go.onclick = () => $('sBackup').click(); const later = el('button', 'ghost', '稍後再說'); later.type = 'button'; later.onclick = () => { lsSet('hk-backup-since', t); render(); }; b.append(' ', go, ' ', later); bn.append(b); }
-    if (dayFilter) { const b = el('div', 'banner', `只看 ${dayFilter.slice(5)} 到期的物品`), x = el('button', 'ghost', '取消篩選'); x.type = 'button'; x.onclick = () => { dayFilter = ''; render(); }; b.append(' ', x); bn.append(b); }
+    if (need.length) { const b = el('div', 'banner' + (bad ? ' bad' : ''), bad ? `有 ${bad} 項已過期,另有 ${need.length - bad} 項快到期,請盡快處理` : `有 ${need.length} 項在 ${state.settings.reminderDays} 天內到期`); if (bad) { const all = el('button', 'ghost', `全部標為已處理(${bad})`); all.dataset.fk = 'bn:all'; all.type = 'button'; all.onclick = () => { const r = HK.finishExpired(state.items, t); state.items = r.items; commit(); snack(`已處理 ${r.changed.length} 項過期物品`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; const ate = el('button', 'ghost', '其實吃掉了'); ate.dataset.fk = 'bn:ate'; ate.type = 'button'; ate.title = '已過期但其實都吃掉了:記為用完,不算浪費'; ate.onclick = () => { const r = HK.finishExpired(state.items, t, Date.now(), 'used'); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項記為吃掉了`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', all, ' ', ate); } const fz = HK.freezeSoon(state.items, t); if (fz.changed.length) { const fb = el('button', 'ghost', `可冷凍的先冷凍(${fz.changed.length})`); fb.dataset.fk = 'bn:freeze'; fb.type = 'button'; fb.title = '2 天內到期、尚未開封的肉/蔬果/乳製品移到冷凍(到期日為保守估算)'; fb.onclick = () => { const r = HK.freezeSoon(state.items, t); state.items = r.items; commit(); snack(`已將 ${r.changed.length} 項移到冷凍(估算)`, '復原', () => { state.items = HK.restoreItems(state.items, r.changed); commit(); }); }; b.append(' ', fb); } const cp = el('button', 'ghost', '複製清單'); cp.dataset.fk = 'bn:copy'; cp.type = 'button'; cp.title = '複製 7 天內到期的物品(文字)'; cp.onclick = () => copyText(HK.expiringText(state.items, t, 7), '快到期清單'); b.append(' ', cp); if (sampleFn && HK.recipeCandidates(state.items, t).length) { const rc = el('button', 'ghost', '想菜色'); rc.dataset.fk = 'bn:recipe'; rc.type = 'button'; rc.title = '請 Claude 用快到期的食材想幾道家常菜(會使用你的 Claude 額度)'; rc.onclick = openRecipes; b.append(' ', rc); } bn.append(b); }
+    if (HK.backupDue(lsGet('hk-backup'), lsGet('hk-backup-since'), state.items.length, t)) { const b = el('div', 'banner', '已經一個月沒備份了,下載一份備份檔比較安心。'); const go = el('button', 'ghost', '現在備份'); go.dataset.fk = 'bn:backup'; go.type = 'button'; go.onclick = () => $('sBackup').click(); const later = el('button', 'ghost', '稍後再說'); later.dataset.fk = 'bn:later'; later.type = 'button'; later.onclick = () => { lsSet('hk-backup-since', t); render(); }; b.append(' ', go, ' ', later); bn.append(b); }
+    if (dayFilter) { const b = el('div', 'banner', `只看 ${dayFilter.slice(5)} 到期的物品`), x = el('button', 'ghost', '取消篩選'); x.type = 'button'; x.dataset.fk = 'bn:dayx'; x.onclick = () => { dayFilter = ''; render(); }; b.append(' ', x); bn.append(b); }
     // 位置篩選
     const chips = $('chips'); chips.textContent = '';
     for (const name of ['全部', ...HK.LOCATIONS.map(l => l.name)]) {
@@ -162,12 +166,13 @@
     const sortedDone = HK.sortDone(done), HCAP = 20, vis = histAll ? sortedDone : sortedDone.slice(0, HCAP);
     for (const i of vis) hl.append(rowFor(i, 'done'));
     const hm = $('histMore'); hm.textContent = '';
-    if (sortedDone.length > HCAP && !histAll) { const b = el('button', 'ghost', `顯示全部 ${sortedDone.length} 筆`); b.type = 'button'; b.onclick = () => { histAll = true; render(); }; hm.append(b); }
+    if (sortedDone.length > HCAP && !histAll) { const b = el('button', 'ghost', `顯示全部 ${sortedDone.length} 筆`); b.type = 'button'; b.dataset.fk = 'hist:more'; b.onclick = () => { histAll = true; render(); }; hm.append(b); }
     const oldN = HK.pruneDone(state.items, 90, t).removed.length;
-    if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()); state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = HK.mergeItems(state.items, r.removed); commit(); }); }; hm.append(b); }
+    if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.dataset.fk = 'hist:prune'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()); state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = HK.mergeItems(state.items, r.removed); commit(); }); }; hm.append(b); }
     $('sync').textContent = syncMsg;
     const left = state.shopping.filter(x => !x.bought).length; $('btnShop').textContent = left ? `購物清單 ${left}` : '購物清單';
     refocus(fk); refocusRow(at);
+    if (inExtra && focusLost()) { const e = $('list').querySelector('.info') || addBtn(); if (e) e.focus({ preventScroll: true }); }
   }
 
   // 空狀態插圖(內嵌 SVG,色彩跟隨 token)
@@ -192,11 +197,25 @@
 
 
   // ---------- 購物清單 ----------
-  let snackTimer = null;
+  let snackTimer = null, snackFrom = null;
+  // 記住焦點是從哪裡移進提示條的,按完提示條上的按鈕才回得去
+  $('snack').addEventListener('focusin', e => { const p = e.relatedTarget; if (!$('snack').contains(p)) snackFrom = p ? { el: p, key: p.dataset.fk } : null; });
+  const listKeys = () => [...$('list').querySelectorAll('.info')].map(b => b.dataset.fk);
+  // 提示條按鈕:收起提示條、做事,再把焦點放到復原回來的那一列,或原本的位置
+  function runSnack(action) {
+    const box = $('snack'), had = box.contains(document.activeElement), from = snackFrom, before = new Set(listKeys());
+    box.hidden = true; action();
+    if (!had || (!box.hidden && box.contains(document.activeElement))) return;
+    const w = openWrap(), back = listKeys().find(k => !before.has(k));
+    // 文字輸入框不自動回去,免得手機又彈出鍵盤
+    const usable = e => e && document.contains(e) && e !== document.body && !e.matches('textarea, input:not([type=checkbox])') && e.getClientRects().length && (!w || w.contains(e));
+    const target = [!w && byKey(back), from && byKey(from.key), from && from.el].find(usable) || (w ? w.querySelector('.sheet') : $('list').querySelector('.info') || addBtn());
+    if (target) target.focus({ preventScroll: true });
+  }
   function snack(text, actionLabel, action) {
     const box = $('snack'); box.textContent = ''; clearTimeout(snackTimer);
     box.append(el('span', '', text));
-    if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => { box.hidden = true; action(); }; box.append(b); }
+    if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => runSnack(action); box.append(b); }
     box.hidden = false; armSnack(box);
   }
   // 游標停在提示條上或鍵盤焦點在裡面時先不收,免得「復原」在要按的時候消失(觸控裝置的 hover 會黏住,不採計)
@@ -212,7 +231,7 @@
     try { await navigator.clipboard.writeText(text); snack(`已複製${label},可貼到 LINE 或備忘錄`); return; } catch (e) { /* 改用手動複製 */ }
     const box = $('snack'); clearTimeout(snackTimer); box.textContent = '';
     const ta = el('textarea'); ta.readOnly = true; ta.value = text; ta.rows = Math.min(8, text.split('\n').length); ta.setAttribute('aria-label', label + '(請全選後複製)'); ta.style.width = 'min(360px,70vw)';
-    const ok = el('button', 'ghost', '關閉'); ok.type = 'button'; ok.onclick = () => { box.hidden = true; };
+    const ok = el('button', 'ghost', '關閉'); ok.type = 'button'; ok.onclick = () => runSnack(() => {});
     box.append(ta, ok); box.hidden = false; ta.focus(); ta.select();
   }
   function removeItem(item) {
@@ -229,17 +248,20 @@
     const bought = HK.unfreezeItem(item); // 補貨放回原本買來時的位置
     snack(`已處理「${item.name}」`, '加入購物清單', () => { const r = addToShopping({ name: item.name, category: item.category, location: bought.location, quantity: item.quantity }); if (r) snack(r.merged ? `購物清單裡的「${item.name}」數量增加了` : `已加入購物清單:${item.name}`); });
     const u = el('button', 'ghost', '復原'); u.type = 'button';
-    u.onclick = () => { box.hidden = true; item.done = false; item.doneAt = null; delete item.outcome; commit(); };
+    u.onclick = () => runSnack(() => { item.done = false; item.doneAt = null; delete item.outcome; commit(); });
     box.append(u);
   }
+  const refreshShop = () => { if (!$('shopWrap').hidden) showShop(); }; // 提示條的復原:面板已關就不要再打開
   function showShop() {
-    $('snack').hidden = true;
-    const fk = focusKey();
+    const fk = focusKey(), act = document.activeElement;
+    const inShop = !$('shopWrap').hidden && !!act.closest('#shopBody, #shopQuick');
+    const shopRows = () => [...$('shopBody').querySelectorAll('li.shoprow')], quicks = () => [...$('shopQuick').children];
+    const rowAt = inShop ? shopRows().indexOf(act.closest('li.shoprow')) : -1, quickAt = inShop ? quicks().indexOf(act) : -1;
     const body = $('shopBody'); body.textContent = '';
     const list = HK.sortShopping(state.shopping);
     const sq = $('shopQuick'); sq.textContent = ''; const sg = HK.shopSuggestions(state.items, state.shopping);
     sq.hidden = !sg.length;
-    for (const n of sg) { const b = el('button', '', '+ ' + n); b.type = 'button'; b.onclick = () => { addToShopping({ name: n, quantity: 1 }); showShop(); }; sq.append(b); }
+    for (const n of sg) { const b = el('button', '', '+ ' + n); b.type = 'button'; b.dataset.fk = 'quick:' + n; b.onclick = () => { addToShopping({ name: n, quantity: 1 }); showShop(); }; sq.append(b); }
     if (!list.length) body.append(el('p', 'note', '清單是空的。東西用完時按「加入購物清單」,或在下面直接輸入要買的東西。'));
     else {
       for (const g of HK.groupShopping(state.shopping)) {
@@ -252,12 +274,12 @@
         const t = el('span', 'nm', x.name + (x.quantity > 1 ? ` ×${x.quantity}` : '')); lab.append(cb, t); li.append(lab);
         const acts = el('div', 'acts');
         if (x.bought) {
-          const put = el('button', '', '放入清單'); put.title = '轉成要追蹤到期日的物品';
+          const put = el('button', '', '放入清單'); put.title = '轉成要追蹤到期日的物品'; put.dataset.fk = `shop:${x.id}:put`;
           put.onclick = () => { $('shopWrap').hidden = true; shopFrom = x.id; openForm(null, HK.shopToForm(x, today(), state.items)); };
           acts.append(put);
         }
-        const del = el('button', 'ghost', '移除'); del.setAttribute('aria-label', `移除${x.name}`);
-        del.onclick = () => { const r = HK.removeShopping(state.shopping, y => y.id === x.id); state.shopping = r.shopping; commit(); showShop(); snack(`已移除「${x.name}」`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); };
+        const del = el('button', 'ghost', '移除'); del.setAttribute('aria-label', `移除${x.name}`); del.dataset.fk = `shop:${x.id}:del`;
+        del.onclick = () => { const r = HK.removeShopping(state.shopping, y => y.id === x.id); state.shopping = r.shopping; commit(); showShop(); snack(`已移除「${x.name}」`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); refreshShop(); }); };
         acts.append(del); li.append(acts); ul.append(li);
       }
       body.append(ul);
@@ -265,15 +287,21 @@
       if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
       if (list.some(x => x.bought)) { const ab = el('button', 'primary', `已買的全部放入清單(${list.filter(x => x.bought).length})`); ab.type = 'button'; ab.title = '到期日依上次紀錄或品名估算,之後可再編輯';
         ab.onclick = () => { const r = HK.shopBoughtToItems(state.shopping, today(), state.items); if (!r.items.length) return; const prevShop = state.shopping; state.items.push(...r.items); state.shopping = r.shopping; commit(); showShop(); render();
-          snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = HK.restoreShopping(state.shopping, r.moved.map(x => ({ item: x, idx: prevShop.indexOf(x) }))); commit(); showShop(); render(); }); };
+          snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = HK.restoreShopping(state.shopping, r.moved.map(x => ({ item: x, idx: prevShop.indexOf(x) }))); commit(); refreshShop(); }); };
         const wa = el('div', 'btns'); wa.append(ab); body.append(wa); }
-      if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
+      if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); refreshShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
     $('shopWrap').hidden = false;
     refocus(fk);
+    // 原本的按鈕不見了(移除、清除):遞補到同一位置的項目;不跳進輸入框,免得手機彈出鍵盤
+    if (inShop && !$('shopWrap').contains(document.activeElement)) {
+      const rows = shopRows(), row = rows[Math.min(rowAt, rows.length - 1)], q = quicks();
+      const target = (rowAt >= 0 && row && row.querySelector('input')) || (quickAt >= 0 && q[Math.min(quickAt, q.length - 1)]) || $('shopWrap').querySelector('.sheet');
+      target.setAttribute('tabindex', target.matches('.sheet') ? '-1' : '0'); target.focus({ preventScroll: true });
+    }
   }
   let shopFrom = null;
-  $('btnShop').onclick = showShop;
+  $('btnShop').onclick = () => { $('snack').hidden = true; showShop(); };
   $('shopClose').onclick = () => { $('shopWrap').hidden = true; };
   $('shopWrap').addEventListener('click', e => { if (e.target === $('shopWrap')) $('shopWrap').hidden = true; });
   $('shopAdd').onsubmit = e => {
@@ -637,7 +665,7 @@
         body.append(el('h2', '', '未來 14 天到期'));
         const strip = el('div', 'upstrip'), um = Math.max(...up.days.map(d => d.count));
         strip.setAttribute('role', 'img'); strip.setAttribute('aria-label', '未來 14 天每日到期數:' + up.days.filter(d => d.count).map(d => `${d.date.slice(5)} ${d.count} 項`).join('、'));
-        up.days.forEach((d, k) => { const col = el(d.count ? 'button' : 'div', 'upcol' + (k === 0 ? ' today' : '')), b = el('i'); if (d.count) { col.type = 'button'; col.setAttribute('aria-label', `${d.date.slice(5)} 到期 ${d.count} 項,點一下只看這天`); col.onclick = () => { dayFilter = d.date; $('statWrap').hidden = true; render(); }; } b.style.height = d.count ? Math.max(8, d.count / um * 56) + 'px' : '2px'; b.title = `${d.date.slice(5)}:${d.count} 項` + (d.names.length ? '(' + d.names.slice(0, 5).join('、') + ')' : ''); col.append(el('em', '', d.count ? String(d.count) : ''), b, el('span', '', String(+d.date.slice(8)))); strip.append(col); });
+        up.days.forEach((d, k) => { const col = el(d.count ? 'button' : 'div', 'upcol' + (k === 0 ? ' today' : '')), b = el('i'); if (d.count) { col.type = 'button'; col.setAttribute('aria-label', `${d.date.slice(5)} 到期 ${d.count} 項,點一下只看這天`); col.onclick = () => { dayFilter = d.date; lastFocus.delete($('statWrap')); $('statWrap').hidden = true; render(); const x = byKey('bn:dayx'); if (x) x.focus(); }; } b.style.height = d.count ? Math.max(8, d.count / um * 56) + 'px' : '2px'; b.title = `${d.date.slice(5)}:${d.count} 項` + (d.names.length ? '(' + d.names.slice(0, 5).join('、') + ')' : ''); col.append(el('em', '', d.count ? String(d.count) : ''), b, el('span', '', String(+d.date.slice(8)))); strip.append(col); });
         body.append(strip);
         body.append(el('p', 'note', '數字是當天到期的件數,最左邊是今天,點一下可在清單只看那天。' + (up.overdue ? `另有 ${up.overdue} 項已過期。` : '')));
       }
@@ -657,7 +685,11 @@
   for (const w of document.querySelectorAll('.sheetwrap')) {
     new MutationObserver(() => {
       if (!w.hidden) {
-        if (!lastFocus.has(w)) lastFocus.set(w, document.activeElement);
+        if (!lastFocus.has(w)) {
+          // 從另一個面板開過來(放入清單、一次新增多項):記那個面板原本的來源,關閉時才回得去
+          const from = document.activeElement, other = from.closest('.sheetwrap');
+          lastFocus.set(w, (other && other !== w && other.hidden && lastFocus.get(other)) || from);
+        }
         const sheet = w.querySelector('.sheet'); sheet.setAttribute('tabindex', '-1');
         setTimeout(() => { if (!w.hidden && !w.contains(document.activeElement)) { const f = [...sheet.querySelectorAll(FOCUSABLE)].filter(x => x.offsetParent !== null)[0]; (f || sheet).focus(); } }, 60);
       } else {
@@ -669,11 +701,17 @@
   }
   document.addEventListener('keydown', e => {
     if (e.key !== 'Tab') return; const w = openWrap(); if (!w) return;
-    const f = [...w.querySelectorAll(FOCUSABLE)].filter(x => x.offsetParent !== null); if (!f.length) return;
-    const first = f[0], last = f[f.length - 1];
-    if (!w.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
-    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    const visible = root => [...root.querySelectorAll(FOCUSABLE)].filter(x => x.offsetParent !== null);
+    const f = visible(w); if (!f.length) return;
+    // 對話框開著時提示條(復原)也要 Tab 得到:接在對話框最後一個控制項之後
+    const extra = $('snack').hidden ? [] : visible($('snack')), all = f.concat(extra);
+    const i = all.indexOf(document.activeElement), last = all.length - 1;
+    let to = null;
+    if (i < 0) { if (!w.contains(document.activeElement)) to = 0; else if (e.shiftKey && document.activeElement.matches('.sheet')) to = last; }
+    else if (extra.length && (i >= f.length || (i === f.length - 1 && !e.shiftKey) || (i === 0 && e.shiftKey))) to = (i + (e.shiftKey ? last : 1)) % all.length;
+    else if (e.shiftKey && i === 0) to = last;
+    else if (!e.shiftKey && i === last) to = 0;
+    if (to !== null) { e.preventDefault(); all[to].focus(); }
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; closeBulk(); if (!$('setWrap').hidden) $('sClose').click(); $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
   // 桌機快捷鍵:/ 搜尋、n 新增(輸入中或對話框開著時不觸發)
