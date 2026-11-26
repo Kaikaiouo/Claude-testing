@@ -47,14 +47,15 @@
   let histAll = false, locFilter = '', query = '', stFilter = '', dayFilter = '', sortMode = 'expiry';
   try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
   const STATUS_LABEL = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
+  const GROUP_LABEL = { expired: '已過期', urgent: '三天內', soon: '這一週', ok: '之後' };
 
   function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
   function badge(days) {
     const st = HK.status(days), b = el('div', 'badge ' + st);
-    if (days < 0) { b.append(el('b', '', String(-days)), el('small', '', '天前過期')); }
-    else if (days === 0) { b.append(el('b', '', '今天'), el('small', '', '到期')); }
-    else { b.append(el('b', '', String(days)), el('small', '', '天後到期')); }
+    if (days < 0) { b.append(el('b', '', String(-days)), el('small', '', '天前')); }
+    else if (days === 0) { b.append(el('b', '', '今'), el('small', '', '天到期')); }
+    else { b.append(el('b', '', String(days)), el('small', '', '天後')); }
     return b;
   }
 
@@ -63,8 +64,8 @@
     li.append(mode === 'done' ? (() => { const b = el('div', 'badge ok'); b.append(el('b', '', '✓'), el('small', '', '已處理')); return b; })() : badge(days));
     const info = el('button', 'info'); info.type = 'button';
     info.append(el('div', 'nm', item.name + (item.quantity > 1 ? ` ×${item.quantity}` : '')));
-    info.append(el('div', 'meta', `${item.category}・${item.location}${item.tempC !== null ? ' ' + item.tempC + '°C' : ''}`));
-    info.append(el('div', 'meta', `${item.expiry}${item.estimated ? '(估算)' : ''}${item.openedAt ? '・已開封' : ''}`));
+    info.append(el('div', 'meta', `${item.location}・${item.category}`));
+    info.append(el('div', 'meta', `${item.expiry.replace(/-/g, '/')} 到期${item.estimated ? '(估算)' : ''}${item.openedAt ? '・已開封' : ''}`));
     info.onclick = () => openForm(item);
     li.append(info);
     if (mode === 'done') {
@@ -73,7 +74,7 @@
       del.onclick = () => { if (del.dataset.arm) { removeItem(item); } else { del.dataset.arm = '1'; del.textContent = '確定?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; }, 2500); } };
       acts.append(undo, del); li.append(acts);
     } else {
-      const d = el('button', 'done-btn', '吃完'); d.title = '標記為已吃完/已處理';
+      const d = el('button', 'done-btn', '用完'); d.title = '標記為已用完/已處理';
       const canOpen = !item.openedAt && HK.openedDays(item.category, item.location, item.openDays);
       d.onclick = () => { Object.assign(item, HK.finishItem(item, today()).item); commit(); offerRestock(item); };
       if (item.quantity > 1) {
@@ -92,6 +93,9 @@
   let renderedDay = '';
   function render() {
     const t = renderedDay = today(), active = state.items.filter(i => !i.done), done = state.items.filter(i => i.done);
+    // 頁首:日期與今天最該先處理的一件
+    const now = new Date(), first = HK.sortByExpiry(active)[0], firstDays = first ? HK.daysLeft(first.expiry, t) : null;
+    $('todayLine').textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日 星期${'日一二三四五六'[now.getDay()]}` + (first && firstDays <= 3 ? ` ・ ${firstDays < 0 ? `「${first.name}」已過期,請檢查` : `先用掉「${first.name}」`}` : '');
     // 摘要
     const s = HK.summarize(state.items, t), stats = $('stats'); stats.textContent = '';
     for (const k of ['expired', 'urgent', 'soon', 'ok']) { const d = el('button', 'stat ' + k); d.type = 'button'; d.setAttribute('aria-pressed', String(stFilter === k)); d.setAttribute('aria-label', `${STATUS_LABEL[k]} ${s[k]} 項,點一下只看這類`); d.append(el('b', '', String(s[k])), el('span', '', STATUS_LABEL[k])); d.onclick = () => { stFilter = stFilter === k ? '' : k; render(); }; stats.append(d); }
@@ -121,7 +125,15 @@
         add.onclick = () => openForm(null); sample.onclick = loadSample; a.append(add, sample); li.append(a);
       } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品,可取消日期篩選。` : stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
       list.append(li);
-    } else for (const i of shown) list.append(rowFor(i, 'active'));
+    } else {
+      // 依到期日排序時分段(分級與上方摘要相同)
+      let group = '';
+      for (const i of shown) {
+        const st = HK.status(HK.daysLeft(i.expiry, t));
+        if (sortMode === 'expiry' && st !== group) { group = st; list.append(el('li', 'grp ' + st, GROUP_LABEL[st])); }
+        list.append(rowFor(i, 'active'));
+      }
+    }
     // 已處理
     $('hist').hidden = !done.length; $('histSum').textContent = `已處理(${done.length})`;
     const hl = $('histList'); hl.textContent = '';
@@ -197,7 +209,7 @@
     const sq = $('shopQuick'); sq.textContent = ''; const sg = HK.shopSuggestions(state.items, state.shopping);
     sq.hidden = !sg.length;
     for (const n of sg) { const b = el('button', '', '+ ' + n); b.type = 'button'; b.onclick = () => { addToShopping({ name: n, quantity: 1 }); showShop(); }; sq.append(b); }
-    if (!list.length) body.append(el('p', 'note', '清單是空的。吃完東西時按「加入購物清單」,或在下面直接輸入要買的東西。'));
+    if (!list.length) body.append(el('p', 'note', '清單是空的。東西用完時按「加入購物清單」,或在下面直接輸入要買的東西。'));
     else {
       for (const g of HK.groupShopping(state.shopping)) {
       body.append(el('h3', 'shopgrp', `${g.category}(${g.pending ? g.pending + ' 待買' : '都買好了'})`));
