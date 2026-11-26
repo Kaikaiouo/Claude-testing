@@ -700,3 +700,33 @@ test('一次新增:行首編號會去掉,小數容量不被截斷', () => {
   const r = HK.parseBulk('1. 牛奶\n2)蘋果\n2.5L鮮奶', '2026-11-26');
   assert.deepStrictEqual(r.items.map(i => i.name), ['牛奶', '蘋果', '2.5L鮮奶']);
 });
+
+test('購物清單:只有品名時依紀錄或品名分類,鮮奶不會被估成 30 天', () => {
+  assert.deepStrictEqual(HK.shopDefaults('鮮奶', []), { category: '乳製品', location: '冷藏' });
+  assert.deepStrictEqual(HK.shopDefaults('神秘物', []), {});
+  // 舊清單裡未分類(其他/冷藏)的項目在放入清單時重新判斷
+  const old = { name: '鮮奶', category: '其他', location: '冷藏', quantity: 1, bought: true };
+  const f = HK.shopToForm(old, '2026-11-26');
+  assert.strictEqual(f.category, '乳製品');
+  assert.strictEqual(f.expiry, '2026-12-03');
+  assert.strictEqual(HK.shopToForm({ name: '吐司', category: '其他', location: '常溫', quantity: 1 }, '2026-11-26').expiry, '2026-11-30');
+});
+
+test('購物清單:放入清單沿用上次的保存天數與開封天數', () => {
+  const hist = [{ id: 'a', name: '保久乳', category: '乳製品', location: '冷藏', purchase: '2026-05-01', expiry: '2026-10-28', openDays: 7, tempC: 4, createdAt: 1, done: true }];
+  const r = HK.shopBoughtToItems([{ id: 's', name: '保久乳', category: '乳製品', location: '冷藏', quantity: 2, bought: true }], '2026-11-26', hist);
+  assert.strictEqual(r.items[0].expiry, HK.addDays('2026-11-26', 180));
+  assert.strictEqual(r.items[0].openDays, 7);
+  assert.strictEqual(r.items[0].estimated, true);
+});
+
+test('名稱記憶:忽略上次開封或移到冷凍後改過的位置與到期日', () => {
+  const base = HK.makeItem({ name: '雞胸肉', category: '肉類', location: '冷藏', quantity: 1, purchase: '2026-11-01', expiry: '2026-11-04', tempC: 4 }, '2026-11-01').item;
+  const frozen = HK.freezeItem(base, '2026-11-02').item;
+  const a = HK.recallItem([frozen], '雞胸肉', '2026-11-26');
+  assert.strictEqual(a.location, '冷藏');
+  assert.strictEqual(a.shelfDays, 3);
+  assert.strictEqual(a.tempC, 4);
+  const milk = HK.makeItem({ name: '鮮奶', category: '乳製品', location: '冷藏', quantity: 1, purchase: '2026-11-01', expiry: '2026-11-15' }, '2026-11-01').item;
+  assert.strictEqual(HK.recallItem([HK.openItem(milk, '2026-11-02').item], '鮮奶', '2026-11-26').shelfDays, 14);
+});

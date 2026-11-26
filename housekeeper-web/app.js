@@ -179,12 +179,13 @@
     snack(`已刪除「${item.name}」`, '復原', () => { state.items = HK.reinsertItem(state.items, item, idx); commit(); });
   }
   function addToShopping(f) {
-    const r = HK.addShopping(state.shopping, f); if (!r.added) return false;
+    const r = HK.addShopping(state.shopping, f.category ? f : Object.assign(HK.shopDefaults(f.name, state.items), f)); if (!r.added) return false;
     state.shopping = r.list; commit(); return r;
   }
   function offerRestock(item) {
     const box = $('snack');
-    snack(`已處理「${item.name}」`, '加入購物清單', () => { const r = addToShopping({ name: item.name, category: item.category, location: item.location, quantity: item.quantity }); if (r) snack(r.merged ? `購物清單裡的「${item.name}」數量增加了` : `已加入購物清單:${item.name}`); });
+    const bought = HK.unfreezeItem(item); // 補貨放回原本買來時的位置
+    snack(`已處理「${item.name}」`, '加入購物清單', () => { const r = addToShopping({ name: item.name, category: item.category, location: bought.location, quantity: item.quantity }); if (r) snack(r.merged ? `購物清單裡的「${item.name}」數量增加了` : `已加入購物清單:${item.name}`); });
     const u = el('button', 'ghost', '復原'); u.type = 'button';
     u.onclick = () => { box.hidden = true; item.done = false; item.doneAt = null; delete item.outcome; commit(); };
     box.append(u);
@@ -209,7 +210,7 @@
         const acts = el('div', 'acts');
         if (x.bought) {
           const put = el('button', '', '放入清單'); put.title = '轉成要追蹤到期日的物品';
-          put.onclick = () => { $('shopWrap').hidden = true; shopFrom = x.id; openForm(null, HK.shopToForm(x, today())); };
+          put.onclick = () => { $('shopWrap').hidden = true; shopFrom = x.id; openForm(null, HK.shopToForm(x, today(), state.items)); };
           acts.append(put);
         }
         const del = el('button', 'ghost', '移除'); del.setAttribute('aria-label', `移除${x.name}`);
@@ -219,8 +220,8 @@
       body.append(ul);
       }
       if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
-      if (list.some(x => x.bought)) { const ab = el('button', 'primary', `已買的全部放入清單(${list.filter(x => x.bought).length})`); ab.type = 'button'; ab.title = '到期日依類別估算,之後可再編輯';
-        ab.onclick = () => { const r = HK.shopBoughtToItems(state.shopping, today()); if (!r.items.length) return; const prevShop = state.shopping; state.items.push(...r.items); state.shopping = r.shopping; commit(); showShop(); render();
+      if (list.some(x => x.bought)) { const ab = el('button', 'primary', `已買的全部放入清單(${list.filter(x => x.bought).length})`); ab.type = 'button'; ab.title = '到期日依上次紀錄或品名估算,之後可再編輯';
+        ab.onclick = () => { const r = HK.shopBoughtToItems(state.shopping, today(), state.items); if (!r.items.length) return; const prevShop = state.shopping; state.items.push(...r.items); state.shopping = r.shopping; commit(); showShop(); render();
           snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = prevShop; commit(); showShop(); render(); }); };
         const wa = el('div', 'btns'); wa.append(ab); body.append(wa); }
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); showShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
@@ -278,7 +279,8 @@
     $('fLoc').value = item ? item.location : '冷藏'; $('fTemp').value = item ? (item.tempC === null ? '' : item.tempC) : 4;
     $('fPurchase').value = item ? item.purchase : today(); $('fMfg').value = item && item.mfg ? item.mfg : '';
     $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : ''; $('fOpenDays').value = item && item.openDays ? item.openDays : '';
-    if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; }
+    if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; $('fOpenDays').value = pre.openDays || ''; }
+    stopScan(); $('scanMsg').textContent = '';
     $('recallMsg').hidden = true; const dl = $('nameList'); dl.textContent = ''; for (const n of HK.knownNames(state.items, 50, state.shopping)) dl.append(new Option(n, n));
     const fq = $('freqNames'); fq.textContent = ''; const fn = item ? [] : HK.frequentNames(state.items);
     for (const n of fn) { const b = el('button', '', n); b.type = 'button'; b.onclick = () => { $('fName').value = n; $('fName').dispatchEvent(new Event('change')); }; fq.append(b); } fq.hidden = !fn.length;
@@ -347,6 +349,10 @@
     } catch (e) { /* 沒有就維持手動輸入 */ }
   }
   let thumbUrl = null;
+  const SCAN_LABEL = '📷 拍照/選圖辨識', BULK_LABEL = '📷 拍照辨識多件商品';
+  function stopScan() { if (!scanCtl) return; scanCtl.abort(); scanCtl = null; $('scanBtn').textContent = SCAN_LABEL; $('scanMsg').textContent = ''; }
+  function stopBulkScan() { if (!bulkCtl) return; bulkCtl.abort(); bulkCtl = null; $('bulkScan').textContent = BULK_LABEL; $('bulkScanMsg').textContent = ''; }
+  const closeBulk = () => { stopBulkScan(); $('bulkWrap').hidden = true; };
   function showThumb(f) {
     try { if (thumbUrl) URL.revokeObjectURL(thumbUrl); thumbUrl = URL.createObjectURL(f); const t = $('scanThumb'); t.src = thumbUrl; t.hidden = false; } catch (e) { /* 預覽失敗不影響辨識 */ }
   }
@@ -354,31 +360,33 @@
   $('scanBtn').onclick = () => { if (scanCtl) { scanCtl.abort(); return; } $('scanFile').click(); };
   $('scanFile').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f || !sampleFn) return;
-    const msg = $('scanMsg'), btn = $('scanBtn'); scanCtl = new AbortController(); showThumb(f); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在讀取包裝…';
+    const msg = $('scanMsg'), btn = $('scanBtn'); const ctl = scanCtl = new AbortController(); showThumb(f); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在讀取包裝…';
     try {
-      const raw = await sampleFn.json(HK.scanPrompt(today()), { images: [f], modelTier: 'quick', signal: scanCtl.signal });
+      const raw = await sampleFn.json(HK.scanPrompt(today()), { images: [f], modelTier: 'quick', signal: ctl.signal });
+      if (scanCtl !== ctl) return; // 表單已關閉或換了:丟掉這次結果
       const r = HK.parseScan(raw, today());
       if (!r) { msg.textContent = '沒有認出品名,請手動輸入。'; return; }
       $('fName').value = r.name; $('fCat').value = r.category; $('fQty').value = r.quantity; $('fLoc').value = r.location; $('fTemp').value = r.tempC;
-      $('fMfg').value = r.mfg; $('fExpiry').value = r.expiry; $('fEst').checked = r.estimated;
+      $('fMfg').value = r.mfg; $('fExpiry').value = r.expiry; $('fEst').checked = r.estimated; $('fCat').onchange(); syncOpened();
       msg.textContent = r.readDate ? '已填入,請對照包裝確認日期。' : '包裝日期看不到,到期日用類別估算,請自行確認。';
-    } catch (err) { msg.textContent = SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
-    finally { scanCtl = null; btn.textContent = '📷 拍照/選圖辨識'; }
+    } catch (err) { if (scanCtl === ctl) msg.textContent = ctl.signal.aborted ? SCAN_ERR.cancelled : SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
+    finally { if (scanCtl === ctl) { scanCtl = null; btn.textContent = SCAN_LABEL; } }
   };
 
   let bulkCtl = null;
   $('bulkScan').onclick = () => { if (bulkCtl) { bulkCtl.abort(); return; } $('bulkScanFile').click(); };
   $('bulkScanFile').onchange = async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f || !sampleFn) return;
-    const msg = $('bulkScanMsg'), btn = $('bulkScan'); bulkCtl = new AbortController(); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在看照片裡有哪些東西…';
+    const msg = $('bulkScanMsg'), btn = $('bulkScan'); const ctl = bulkCtl = new AbortController(); btn.textContent = '辨識中…(再按一次取消)'; msg.textContent = '正在看照片裡有哪些東西…';
     try {
-      const raw = await sampleFn.json(HK.scanMultiPrompt(today(), { receipt: $('bulkReceipt').checked }), { images: [f], modelTier: 'quick', signal: bulkCtl.signal });
+      const raw = await sampleFn.json(HK.scanMultiPrompt(today(), { receipt: $('bulkReceipt').checked }), { images: [f], modelTier: 'quick', signal: ctl.signal });
+      if (bulkCtl !== ctl) return;
       const list = HK.parseScanMulti(raw, today());
       if (!list.length) { msg.textContent = '沒有認出商品,請換一張或手動輸入。'; return; }
       const cur = $('bulkText').value.trim(); $('bulkText').value = (cur ? cur + '\n' : '') + HK.scanToBulkText(list); bulkSync();
       msg.textContent = `認出 ${list.length} 項,已加到上方文字框,請檢查後再加入(沒看到日期的會用品名估算)。`;
-    } catch (err) { msg.textContent = SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
-    finally { bulkCtl = null; btn.textContent = '📷 拍照辨識多件商品'; }
+    } catch (err) { if (bulkCtl === ctl) msg.textContent = ctl.signal.aborted ? SCAN_ERR.cancelled : SCAN_ERR[err && err.code] || '辨識失敗,請手動輸入。'; }
+    finally { if (bulkCtl === ctl) { bulkCtl = null; btn.textContent = BULK_LABEL; } }
   };
 
   // 快到期食材想菜色(沿用 sample;只送品名與剩餘天數)
@@ -409,15 +417,15 @@
   $('bulkFromForm').onclick = () => { closeForm(); $('bulkOpen').onclick(); };
   $('bulkOpen').onclick = () => { $('bulkText').value = ''; $('bulkScanMsg').textContent = ''; bulkSync(); $('bulkWrap').hidden = false; setTimeout(() => $('bulkText').focus(), 50); };
   $('bulkText').oninput = bulkSync;
-  $('bulkCancel').onclick = () => { $('bulkWrap').hidden = true; };
-  $('bulkWrap').addEventListener('click', e => { if (e.target === $('bulkWrap')) $('bulkWrap').hidden = true; });
+  $('bulkCancel').onclick = closeBulk;
+  $('bulkWrap').addEventListener('click', e => { if (e.target === $('bulkWrap')) closeBulk(); });
   $('bulkSave').onclick = () => {
     const r = HK.parseBulk($('bulkText').value, today()); if (!r.items.length) return;
-    state.items.push(...r.items); $('bulkWrap').hidden = true; commit();
+    state.items.push(...r.items); closeBulk(); commit();
     const ids = new Set(r.items.map(i => i.id));
     snack(`已加入 ${r.items.length} 項(到期日為估算)`, '復原', () => { state.items = state.items.filter(i => !ids.has(i.id)); commit(); });
   };
-  const closeForm = () => { $('formWrap').hidden = true; editing = null; shopFrom = null; };
+  const closeForm = () => { stopScan(); $('formWrap').hidden = true; editing = null; shopFrom = null; };
   $('fab').onclick = () => openForm(null);
   $('addWide').onclick = () => openForm(null);
   $('fCancel').onclick = closeForm;
@@ -577,7 +585,7 @@
     else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; $('bulkWrap').hidden = true; if (!$('setWrap').hidden) $('sClose').click(); $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; closeBulk(); if (!$('setWrap').hidden) $('sClose').click(); $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
   // 桌機快捷鍵:/ 搜尋、n 新增(輸入中或對話框開著時不觸發)
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;

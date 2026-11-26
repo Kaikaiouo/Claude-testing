@@ -305,18 +305,28 @@
     return [...map.entries()].map(([category, items]) => ({ category, items, pending: items.filter(i => !i.bought).length }))
       .sort((a, b) => ((a.pending === 0) - (b.pending === 0)) || (idx(a.category) - idx(b.category)));
   }
-  // 買好後轉成物品表單的預填值(到期日用類別估算,標為估算)
-  function shopToForm(s, today) {
-    const r = suggestExpiry(s.category, s.location, today), l = LOCATIONS.find(x => x.name === s.location);
-    return { name: s.name, category: s.category, location: s.location, quantity: s.quantity, purchase: today, expiry: r.date, estimated: true, tempC: l && l.tempC !== null ? l.tempC : '' };
+  // 只有品名時(手動輸入、常買快選)的類別/位置:先看以前的紀錄,再依品名猜;都沒有回傳 {}
+  function shopDefaults(name, items) {
+    const g = recallItem(items, name, '') || guessCategory(name);
+    return g ? { category: g.category, location: g.location } : {};
+  }
+  // 買好後轉成物品表單的預填值。到期日(一律標為估算)依序採用:上次同樣類別與位置的保存天數、品名專屬天數、類別估算
+  function shopToForm(s, today, items = []) {
+    // 其他/冷藏 是沒分類時的預設值(舊清單裡手動加的鮮奶也是),重新判斷,避免鮮奶被估成 30 天
+    const d = s.category === '其他' && s.location === '冷藏' ? shopDefaults(s.name, items) : {};
+    const category = d.category || s.category, location = d.location || s.location;
+    const h = recallItem(items, s.name, today), same = !!h && h.category === category && h.location === location;
+    const g = guessCategory(s.name), l = LOCATIONS.find(x => x.name === location);
+    const expiry = same && h.expiry ? h.expiry : g && g.days && g.location === location ? addDays(today, g.days) : suggestExpiry(category, location, today).date;
+    return { name: s.name, category, location, quantity: s.quantity, purchase: today, expiry, estimated: true, openDays: same ? h.openDays : '', tempC: same ? h.tempC : l && l.tempC !== null ? l.tempC : '' };
   }
 
   // 已買好的購物清單項目一次放入庫存(到期日依類別估算,標為估算);回傳新物品與剩餘清單
-  function shopBoughtToItems(shopping, today) {
+  function shopBoughtToItems(shopping, today, history = []) {
     const items = [], rest = [], moved = [];
     for (const s of shopping || []) {
       if (!s.bought) { rest.push(s); continue; }
-      const r = makeItem(shopToForm(s, today), today);
+      const r = makeItem(shopToForm(s, today, history), today);
       if (r.item) { items.push(r.item); moved.push(s); } else rest.push(s);
     }
     return { items, shopping: rest, moved };
@@ -556,7 +566,9 @@
   // 依過去同名物品預填:類別、位置、溫度、開封天數,以及「上次從購買到期的天數」套到今天(標為估算)
   function recallItem(items, name, today, shopping = []) {
     const k = s => String(s || '').replace(/\s+/g, '').toLowerCase(), n = k(name); if (!n) return null;
-    const hit = [...(items || [])].filter(i => k(i.name) === n).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    let hit = [...(items || [])].filter(i => k(i.name) === n).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+    // 開封、移到冷凍是買回來之後的事:下次購買要用原本的位置與到期日
+    if (hit) hit = unfreezeItem(unopenItem(hit));
     if (!hit) {
       const sh = (shopping || []).filter(x => k(x.name) === n).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0))[0];
       return sh ? { name: sh.name, category: sh.category, location: sh.location, quantity: sh.quantity || 1, tempC: '', openDays: '', shelfDays: null, expiry: null } : null;
@@ -692,7 +704,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
