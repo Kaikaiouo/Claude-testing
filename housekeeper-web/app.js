@@ -121,7 +121,7 @@
     if (target) target.focus({ preventScroll: true });
   }
 
-  let renderedDay = '';
+  let renderedDay = '', histBefore = null; // histBefore:搜尋自動展開前,「已處理」原本是否開著
   const addBtn = () => [$('addWide'), $('fab')].find(b => getComputedStyle(b).display !== 'none');
   const focusLost = () => !document.activeElement || document.activeElement === document.body;
   function render() {
@@ -153,17 +153,21 @@
     // 清單
     const list = $('list'); list.textContent = '';
     const shown = HK.sortItems(HK.filterItems(active, currentFilters()), sortMode);
+    // 有打關鍵字時,「已處理」紀錄也一起找(只套關鍵字與位置;狀態、到期日是待處理物品的條件)
+    const searching = !!query.trim(), doneShown = searching ? HK.filterItems(done, { query, location: locFilter }) : done;
+    const doneHint = searching && doneShown.length ? `下面的「已處理」紀錄有 ${doneShown.length} 筆符合。` : '';
     if (!shown.length) {
       const li = el('li', 'empty');
       if (!state.items.length) {
         li.append(emptyArt('new'), el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
         const a = el('div', 'actions'), add = el('button', 'primary', '新增第一個物品'), sample = el('button', '', '載入範例看看');
         add.onclick = () => openForm(null); sample.onclick = () => { loadSample(); const x = $('list').querySelector('.info'); if (x && focusLost()) x.focus({ preventScroll: true }); }; a.append(add, sample); li.append(a);
-      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品。` : stFilter ? `目前的條件下沒有「${STATUS_LABEL[stFilter]}」的物品。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
+      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品。` : stFilter ? `目前的條件下沒有「${STATUS_LABEL[stFilter]}」的物品。` : doneHint ? '待處理清單裡沒有。' : '換個關鍵字或位置試試。') : '全部都處理完了!'));
       if (active.length) {
         const a = el('div', 'actions'), clear = el('button', '', '清除搜尋與篩選'); clear.type = 'button';
         clear.onclick = () => { clearFilters(); const x = $('list').querySelector('.info'); if (x) x.focus({ preventScroll: true }); }; a.append(clear); li.append(a);
       }
+      if (doneHint) li.insertBefore(el('div', '', doneHint), li.querySelector('.actions'));
       list.append(li);
     } else {
       // 依到期日排序時分段(分級與上方摘要相同)
@@ -175,13 +179,17 @@
       }
     }
     // 已處理
-    $('hist').hidden = !done.length; $('histSum').textContent = `已處理(${done.length})`;
+    const hist = $('hist');
+    hist.hidden = !doneShown.length; $('histSum').textContent = searching ? `已處理(符合 ${doneShown.length} / ${done.length})` : `已處理(${done.length})`;
+    // 開始找到時展開一次(之後使用者收起就不再硬開),清掉關鍵字後回到原本的開合狀態
+    if (searching && doneShown.length && histBefore === null) { histBefore = hist.open; hist.open = true; }
+    else if (!searching && histBefore !== null) { hist.open = histBefore; histBefore = null; }
     const hl = $('histList'); hl.textContent = '';
-    const sortedDone = HK.sortDone(done), HCAP = 20, vis = histAll ? sortedDone : sortedDone.slice(0, HCAP);
+    const sortedDone = HK.sortDone(doneShown), HCAP = 20, vis = histAll ? sortedDone : sortedDone.slice(0, HCAP);
     for (const i of vis) hl.append(rowFor(i, 'done'));
     const hm = $('histMore'); hm.textContent = '';
     if (sortedDone.length > HCAP && !histAll) { const b = el('button', 'ghost', `顯示全部 ${sortedDone.length} 筆`); b.type = 'button'; b.dataset.fk = 'hist:more'; b.onclick = () => { histAll = true; render(); }; hm.append(b); }
-    const oldN = HK.pruneDone(state.items, 90, t).removed.length;
+    const oldN = searching ? 0 : HK.pruneDone(state.items, 90, t).removed.length; // 清除是整批的,搜尋中不放,免得以為只清符合的
     if (oldN) { const b = el('button', 'ghost', `清除 90 天前的紀錄(${oldN})`); b.type = 'button'; b.dataset.fk = 'hist:prune'; b.onclick = () => { const r = HK.pruneDone(state.items, 90, today()); state.items = r.kept; commit(); snack(`已清除 ${r.removed.length} 筆舊紀錄`, '復原', () => { state.items = HK.mergeItems(state.items, r.removed); commit(); }); }; hm.append(b); }
     $('sync').textContent = syncMsg;
     const left = state.shopping.filter(x => !x.bought).length; $('btnShop').textContent = left ? `購物清單 ${left}` : '購物清單';
@@ -389,6 +397,7 @@
     $('fExpiry').value = item ? item.expiry : ''; $('fEst').checked = item ? item.estimated : false; $('fNotes').value = item ? item.notes : ''; $('fOpenDays').value = item && item.openDays ? item.openDays : '';
     if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; $('fOpenDays').value = pre.openDays || ''; }
     stopScan(); $('scanMsg').textContent = '';
+    $('outcomeRow').hidden = !(item && item.done); $('fOutcome').value = item && item.outcome === 'wasted' ? 'wasted' : 'used';
     $('recallMsg').hidden = true; const dl = $('nameList'); dl.textContent = ''; for (const n of HK.knownNames(state.items, 50, state.shopping)) dl.append(new Option(n, n));
     const fq = $('freqNames'); fq.textContent = ''; const fn = item ? [] : HK.frequentNames(state.items);
     for (const n of fn) { const b = el('button', '', n); b.type = 'button'; b.onclick = () => { $('fName').value = n; $('fName').dispatchEvent(new Event('change')); }; fq.append(b); } fq.hidden = !fn.length;
@@ -592,7 +601,7 @@
     }
     $('fSave').dataset.dupOk = '';
     const added = !editing;
-    if (editing) saveEdit(r.item);
+    if (editing) saveEdit(editing.done ? Object.assign(r.item, { outcome: $('fOutcome').value }) : r.item);
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
     if (added) noteHidden(r.item);
@@ -774,7 +783,7 @@
   $('search').addEventListener('input', e => {
     query = e.target.value; render();
     // 停下打字後才報筆數,免得每個字都插話
-    clearTimeout(countTimer); countTimer = setTimeout(() => { if (query.trim()) announce(`符合 ${HK.filterItems(state.items.filter(i => !i.done), currentFilters()).length} 項`); }, 700);
+    clearTimeout(countTimer); countTimer = setTimeout(() => { if (!query.trim()) return; const n = HK.filterItems(state.items.filter(i => !i.done), currentFilters()).length, d = HK.filterItems(state.items.filter(i => i.done), { query, location: locFilter }).length; announce(`符合 ${n} 項${d ? `,已處理紀錄另有 ${d} 筆` : ''}`); }, 700);
   });
   // 頁面開著過夜:回到畫面或每分鐘檢查日期,換日就重算剩餘天數
   const refreshDay = () => { if (renderedDay !== today()) render(); };

@@ -843,3 +843,15 @@ test('doneNote:顯示處理日與結果,跨年帶年份,沒有處理日只寫結
   assert.strictEqual(HK.doneNote({ doneAt: at('2025-12-31'), outcome: 'wasted' }, T), '2025/12/31 過期才處理');
   assert.strictEqual(HK.doneNote({ doneAt: null }, T), '用完');
 });
+
+test('已處理紀錄可改處理結果:applyEdit 保留處理日,統計跟著變;搜尋找得到', () => {
+  const base = HK.makeItem({ name: '鮮奶', category: '乳製品', quantity: 1, expiry: '2026-11-20' }, '2026-11-10').item;
+  const done = HK.finishItem(base, '2026-11-27', { now: 1000 }).item;
+  assert.strictEqual(done.outcome, 'wasted');
+  const next = HK.makeItem(Object.assign({}, done), '2026-11-27', done.id).item;
+  assert.strictEqual(HK.applyEdit(done, next).outcome, 'wasted'); // 沒改就維持原結果
+  const fixed = HK.applyEdit(done, Object.assign(next, { outcome: 'used' }));
+  assert.deepStrictEqual([fixed.done, fixed.doneAt, fixed.outcome], [true, 1000, 'used']);
+  assert.strictEqual(HK.stats([fixed], '2026-11-27').wasted, 0);
+  assert.strictEqual(HK.filterItems([fixed], { query: '鮮' }).length, 1);
+});
