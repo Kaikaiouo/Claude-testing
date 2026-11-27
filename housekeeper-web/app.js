@@ -43,6 +43,13 @@
     } catch (e) { /* 沒有雲端:維持本機模式 */ }
   }
 
+  // 同一裝置的另一個分頁改了資料:跟上,免得這個分頁下次儲存把對方的變更整包蓋掉
+  window.addEventListener('storage', e => {
+    if (e.key !== LS || !e.newValue) return;
+    const next = HK.fromOtherTab(state, e.newValue); if (!next) return;
+    state = next; state.settings = Object.assign(DEFAULT().settings, state.settings); render(); refreshShop();
+  });
+
   // ---------- 清單 ----------
   let histAll = false, locFilter = '', query = '', stFilter = '', dayFilter = '', sortMode = 'expiry';
   try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
@@ -148,7 +155,7 @@
       if (!state.items.length) {
         li.append(emptyArt('new'), el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
         const a = el('div', 'actions'), add = el('button', 'primary', '新增第一個物品'), sample = el('button', '', '載入範例看看');
-        add.onclick = () => openForm(null); sample.onclick = loadSample; a.append(add, sample); li.append(a);
+        add.onclick = () => openForm(null); sample.onclick = () => { loadSample(); const x = $('list').querySelector('.info'); if (x && focusLost()) x.focus({ preventScroll: true }); }; a.append(add, sample); li.append(a);
       } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品,可取消日期篩選。` : stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
       list.append(li);
     } else {
@@ -192,9 +199,18 @@
   function loadSample() {
     const ids = new Set(state.items.map(i => i.id));
     for (const i of HK.sampleItems(today())) if (!ids.has(i.id)) state.items.push(i);
-    commit(); $('setWrap').hidden = true;
+    commit();
   }
 
+
+  // ---------- 面板關閉 ----------
+  // 點面板外的空白處關閉:按下與放開都要在空白處(在欄位裡拖曳選字、滑到外面才放開不算)
+  let downOn = null;
+  document.addEventListener('pointerdown', e => { downOn = e.target; }, true);
+  function onBackdrop(id, close) { const w = $(id); w.addEventListener('click', e => { if (e.target === w && downOn === w) close(); }); }
+  // 打到一半誤點空白處或按 Esc:面板留著,要按提示條的「放棄」(或面板的「取消」)才丟掉
+  function guardDiscard(close) { snack('還有沒儲存的內容', '放棄', close); $('snack').dataset.guard = '1'; }
+  const dropGuard = () => { const box = $('snack'); if (box.dataset.guard) { box.hidden = true; delete box.dataset.guard; } };
 
   // ---------- 購物清單 ----------
   let snackTimer = null, snackFrom = null;
@@ -214,7 +230,7 @@
   }
   function snack(text, actionLabel, action) {
     const box = $('snack'); box.textContent = ''; clearTimeout(snackTimer);
-    box.append(el('span', '', text));
+    delete box.dataset.guard; box.append(el('span', '', text));
     if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => runSnack(action); box.append(b); }
     box.hidden = false; armSnack(box);
   }
@@ -229,7 +245,7 @@
   async function copyText(text, label) {
     if (!text) { snack('沒有可複製的內容'); return; }
     try { await navigator.clipboard.writeText(text); snack(`已複製${label},可貼到 LINE 或備忘錄`); return; } catch (e) { /* 改用手動複製 */ }
-    const box = $('snack'); clearTimeout(snackTimer); box.textContent = '';
+    const box = $('snack'); clearTimeout(snackTimer); box.textContent = ''; delete box.dataset.guard;
     const ta = el('textarea'); ta.readOnly = true; ta.value = text; ta.rows = Math.min(8, text.split('\n').length); ta.setAttribute('aria-label', label + '(請全選後複製)'); ta.style.width = 'min(360px,70vw)';
     const ok = el('button', 'ghost', '關閉'); ok.type = 'button'; ok.onclick = () => runSnack(() => {});
     box.append(ta, ok); box.hidden = false; ta.focus(); ta.select();
@@ -303,7 +319,7 @@
   let shopFrom = null;
   $('btnShop').onclick = () => { $('snack').hidden = true; showShop(); };
   $('shopClose').onclick = () => { $('shopWrap').hidden = true; };
-  $('shopWrap').addEventListener('click', e => { if (e.target === $('shopWrap')) $('shopWrap').hidden = true; });
+  onBackdrop('shopWrap', () => { $('shopWrap').hidden = true; });
   $('shopAdd').onsubmit = e => {
     e.preventDefault(); const inp = $('shopName'), name = inp.value.trim(); if (!name) { inp.focus(); return; }
     addToShopping({ name, quantity: 1 }); inp.value = ''; showShop(); $('shopName').focus();
@@ -345,6 +361,10 @@
   $('qPlus').onclick = () => { $('fQty').value = Math.min(99, (+$('fQty').value || 1) + 1); };
 
   let catTouched = false;
+  let opened = ''; // 開啟表單當下的內容,用來判斷有沒有還沒儲存的修改
+  const formValues = () => JSON.stringify([...$('formWrap').querySelectorAll('input:not([type=file]), select, textarea')].map(x => (x.type === 'checkbox' ? x.checked : x.value)));
+  const dismissForm = () => { if ($('formWrap').hidden) return; if (scanCtl || formValues() !== opened) guardDiscard(closeForm); else closeForm(); };
+  const dismissBulk = () => { if ($('bulkWrap').hidden) return; if (bulkCtl || $('bulkText').value.trim()) guardDiscard(closeBulk); else closeBulk(); };
   // 程式自動帶入、使用者還沒改過的值:換品名時要清掉,換類別/位置/購買日時要重算
   let autoExp = '', autoOpen = '', autoPlaced = false;
   function openForm(item, pre) {
@@ -361,7 +381,7 @@
     for (const n of fn) { const b = el('button', '', n); b.type = 'button'; b.onclick = () => { $('fName').value = n; $('fName').dispatchEvent(new Event('change')); }; fq.append(b); } fq.hidden = !fn.length;
     $('fCat').onchange(); syncOpened(); syncFreeze();
     $('fDelete').hidden = !item; $('fDelete').textContent = '刪除'; $('fDelete').dataset.arm = '';
-    $('bulkFromForm').hidden = !!item || !!pre; $('formWrap').hidden = false; if (!item) setTimeout(() => $('fName').focus(), 50);
+    $('bulkFromForm').hidden = !!item || !!pre; $('formWrap').hidden = false; opened = formValues(); if (!item) setTimeout(() => $('fName').focus(), 50);
   }
   // 輸入已用過的名稱:帶入上次的類別/位置/保存天數(只在新增、且到期日還沒填時)
   $('fName').addEventListener('change', () => {
@@ -454,7 +474,7 @@
   const SCAN_LABEL = '📷 拍照/選圖辨識', BULK_LABEL = '📷 拍照辨識多件商品';
   function stopScan() { if (!scanCtl) return; scanCtl.abort(); scanCtl = null; $('scanBtn').textContent = SCAN_LABEL; $('scanMsg').textContent = ''; }
   function stopBulkScan() { if (!bulkCtl) return; bulkCtl.abort(); bulkCtl = null; $('bulkScan').textContent = BULK_LABEL; $('bulkScanMsg').textContent = ''; }
-  const closeBulk = () => { stopBulkScan(); $('bulkWrap').hidden = true; };
+  const closeBulk = () => { dropGuard(); stopBulkScan(); $('bulkWrap').hidden = true; };
   function showThumb(f) {
     try { if (thumbUrl) URL.revokeObjectURL(thumbUrl); thumbUrl = URL.createObjectURL(f); const t = $('scanThumb'); t.src = thumbUrl; t.hidden = false; } catch (e) { /* 預覽失敗不影響辨識 */ }
   }
@@ -512,7 +532,7 @@
   }
   const closeRecipes = () => { if (recipeCtl) recipeCtl.abort(); recipeCtl = null; $('recipeWrap').hidden = true; };
   $('recipeClose').onclick = closeRecipes; $('recipeAgain').onclick = openRecipes;
-  $('recipeWrap').addEventListener('click', e => { if (e.target === $('recipeWrap')) closeRecipes(); });
+  onBackdrop('recipeWrap', closeRecipes);
 
   // 一次新增多項
   const bulkSync = () => { const r = HK.parseBulk($('bulkText').value, today()); $('bulkPrev').textContent = r.items.length ? `將加入 ${r.items.length} 項:` + r.items.slice(0, 8).map(i => `${i.name}×${i.quantity}(${i.category}/${i.location})`).join('、') + (r.items.length > 8 ? '…' : '') + (r.skipped.length ? `;略過 ${r.skipped.length} 行無法辨識` : '') : ''; $('bulkSave').disabled = !r.items.length; };
@@ -520,18 +540,18 @@
   $('bulkOpen').onclick = () => { $('bulkText').value = ''; $('bulkScanMsg').textContent = ''; bulkSync(); $('bulkWrap').hidden = false; setTimeout(() => $('bulkText').focus(), 50); };
   $('bulkText').oninput = bulkSync;
   $('bulkCancel').onclick = closeBulk;
-  $('bulkWrap').addEventListener('click', e => { if (e.target === $('bulkWrap')) closeBulk(); });
+  onBackdrop('bulkWrap', () => dismissBulk());
   $('bulkSave').onclick = () => {
     const r = HK.parseBulk($('bulkText').value, today()); if (!r.items.length) return;
     state.items.push(...r.items); closeBulk(); commit();
     const ids = new Set(r.items.map(i => i.id));
     snack(`已加入 ${r.items.length} 項(到期日為估算)`, '復原', () => { state.items = state.items.filter(i => !ids.has(i.id)); commit(); });
   };
-  const closeForm = () => { stopScan(); $('formWrap').hidden = true; editing = null; shopFrom = null; };
+  const closeForm = () => { dropGuard(); stopScan(); $('formWrap').hidden = true; editing = null; shopFrom = null; };
   $('fab').onclick = () => openForm(null);
   $('addWide').onclick = () => openForm(null);
   $('fCancel').onclick = closeForm;
-  $('formWrap').addEventListener('click', e => { if (e.target === $('formWrap')) closeForm(); });
+  onBackdrop('formWrap', () => dismissForm());
   const readForm = () => HK.makeItem({ name: $('fName').value, category: $('fCat').value, location: $('fLoc').value, quantity: $('fQty').value, tempC: $('fTemp').value, purchase: $('fPurchase').value, mfg: $('fMfg').value, expiry: $('fExpiry').value, estimated: $('fEst').checked, notes: $('fNotes').value, openDays: $('fOpenDays').value, openedAt: editing && editing.openedAt, expiryBeforeOpen: editing && editing.expiryBeforeOpen }, today(), editing ? editing.id : undefined);
   // 把表單內容存進正在編輯的物品(就地更新,讓「復原」鈕仍指向同一物件)
   function saveEdit(next) {
@@ -576,9 +596,9 @@
     if (days === state.settings.reminderDays && hour === state.settings.reminderHour) return; // 沒改就不更新時間戳,避免蓋掉雲端
     state.settings.reminderDays = days; state.settings.reminderHour = hour; commit();
   };
-  $('setWrap').addEventListener('click', e => { if (e.target === $('setWrap')) $('sClose').click(); });
-  $('sSample').onclick = loadSample;
-  $('sCopy').onclick = () => { $('setWrap').hidden = true; copyText(HK.expiringText(state.items, today(), 7), '快到期清單'); };
+  onBackdrop('setWrap', () => $('sClose').click());
+  $('sSample').onclick = () => { $('sClose').click(); loadSample(); }; // 先照「完成」收掉設定,改過的提醒天數才不會丟
+  $('sCopy').onclick = () => { $('sClose').click(); copyText(HK.expiringText(state.items, today(), 7), '快到期清單'); };
   $('sExport').onclick = async () => {
     const d = Math.round(Number($('sDays').value)), h = +$('sHour').value;
     const ics = HK.toICS(state.items, { reminderDays: d >= 0 && d <= 60 ? d : 3, reminderHour: h }), msg = $('exportMsg');
@@ -676,7 +696,7 @@
     $('statWrap').hidden = false;
   }
   $('btnStats').onclick = showStats; $('statClose').onclick = () => { $('statWrap').hidden = true; };
-  $('statWrap').addEventListener('click', e => { if (e.target === $('statWrap')) $('statWrap').hidden = true; });
+  onBackdrop('statWrap', () => { $('statWrap').hidden = true; });
 
   // 對話框焦點管理:開啟時移入、Tab 不跳出、關閉時還原到原本的按鈕
   const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select,textarea,[tabindex]:not([tabindex="-1"])';
@@ -713,7 +733,8 @@
     else if (!e.shiftKey && i === last) to = 0;
     if (to !== null) { e.preventDefault(); all[to].focus(); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeForm(); $('shopWrap').hidden = true; closeBulk(); if (!$('setWrap').hidden) $('sClose').click(); $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
+  // 中文輸入法選字中的 Esc 只是取消組字,不可關掉面板
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !e.isComposing && e.keyCode !== 229) { dismissForm(); $('shopWrap').hidden = true; dismissBulk(); if (!$('setWrap').hidden) $('sClose').click(); $('statWrap').hidden = true; if (!$('recipeWrap').hidden) closeRecipes(); } });
   // 桌機快捷鍵:/ 搜尋、n 新增(輸入中或對話框開著時不觸發)
   document.addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;

@@ -225,6 +225,13 @@
     return Object.assign({}, incoming, { items: reuse(current.items, incoming.items), shopping: reuse(current.shopping, incoming.shopping) });
   }
 
+  // 同一裝置開了兩個分頁:另一個分頁寫入 localStorage 的原始字串比目前新才採用,否則回傳 null
+  function fromOtherTab(current, raw) {
+    let s; try { s = JSON.parse(raw); } catch (e) { return null; }
+    const c = cleanState(s);
+    return c && (c.state.updatedAt || 0) > ((current && current.updatedAt) || 0) ? adoptState(current, c.state) : null;
+  }
+
   // ---- iCalendar 匯出:每個未處理物品一個全天事件 + 提前提醒 ----
   const icsEscape = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   function fold(line) {
@@ -730,7 +737,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

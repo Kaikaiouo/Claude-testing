@@ -787,3 +787,16 @@ test('openOne:數量多於 1 只開封一個,其餘到期日不變;不重複計�
   assert.equal(single.opened.id, 'm');
   assert.equal(HK.openOne(r.opened, d), null);
 });
+
+test('另一個分頁的資料:較新才採用,同 id 沿用原物件,壞資料不理', () => {
+  const item = { id: 'a', name: '鮮奶', expiry: '2026-12-01', quantity: 2 };
+  const cur = { items: [item], shopping: [], updatedAt: 10 };
+  const raw = JSON.stringify({ items: [{ id: 'a', name: '鮮奶', expiry: '2026-12-01', quantity: 1 }], shopping: [], updatedAt: 20 });
+  assert.equal(HK.fromOtherTab(cur, 'not json'), null);
+  assert.equal(HK.fromOtherTab(cur, 'null'), null);
+  assert.equal(HK.fromOtherTab(cur, JSON.stringify({ items: [], updatedAt: 10 })), null);
+  const next = HK.fromOtherTab(cur, raw);
+  assert.equal(next.updatedAt, 20);
+  assert.equal(next.items[0], item);
+  assert.equal(item.quantity, 1);
+});
