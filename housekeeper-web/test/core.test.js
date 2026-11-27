@@ -828,3 +828,18 @@ test('想菜色「換一批」把建議過的菜名帶進提示,最多 12 道', 
   const p = HK.recipePrompt(list, '2026-11-27', seen);
   assert.ok(p.includes('菜15號') && p.includes('菜4號') && !p.includes('菜3號'));
 });
+
+test('bannerText:沒有快到期時不寫「另有 0 項」,提醒 0 天寫今天到期', () => {
+  assert.strictEqual(HK.bannerText(2, 0, 3), '有 2 項已過期,請盡快處理');
+  assert.strictEqual(HK.bannerText(2, 1, 3), '有 2 項已過期,另有 1 項快到期,請盡快處理');
+  assert.strictEqual(HK.bannerText(0, 3, 3), '有 3 項在 3 天內到期');
+  assert.strictEqual(HK.bannerText(0, 1, 0), '有 1 項今天到期');
+  assert.strictEqual(HK.bannerText(0, 0, 3), '');
+});
+
+test('doneNote:顯示處理日與結果,跨年帶年份,沒有處理日只寫結果', () => {
+  const at = s => new Date(s + 'T12:00:00').getTime();
+  assert.strictEqual(HK.doneNote({ doneAt: at('2026-10-05'), outcome: 'used' }, T), '10/5 用完');
+  assert.strictEqual(HK.doneNote({ doneAt: at('2025-12-31'), outcome: 'wasted' }, T), '2025/12/31 過期才處理');
+  assert.strictEqual(HK.doneNote({ doneAt: null }, T), '用完');
+});

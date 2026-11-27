@@ -98,6 +98,7 @@
   details.hist { margin-top:20px; }
   details.hist summary { cursor:pointer; color:var(--muted); font-size:.85rem; letter-spacing:.1em; padding-block:8px; }
   details.hist .row .nm { color:var(--muted); }
+  .info .meta.wasted { color:var(--expired); }
   .histmore { display:flex; flex-wrap:wrap; gap:8px; padding-block:10px; } .histmore:empty { display:none; }
 
   .addwide { display:none; width:100%; padding:12px; margin-top:8px; }
@@ -154,6 +155,8 @@
   .sr-only { position:absolute; left:0; top:0; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   .snack { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(68px + env(safe-area-inset-bottom, 0px)); z-index:40; width:max-content; max-width:calc(100% - 32px); background:var(--bar); color:var(--bar-fg); border-radius:2px; border:1px solid var(--edge); padding:8px 8px 8px 14px; display:flex; align-items:center; gap:8px; font-size:.88rem; }
   .snack[hidden] { display:none; }
+  /* 面板開著時提示條移到畫面頂端,才不會蓋住面板下半部的按鈕(面板本身不移動) */
+  body:has(.sheetwrap:not([hidden])) .snack { top:calc(8px + env(safe-area-inset-top, 0px)); bottom:auto; }
   .snack button { color:inherit; font-weight:700; border-color:currentColor; white-space:nowrap; }
 
   /* 一般手機:功能列與標題同一行,頁首矮一些 */

@@ -299,6 +299,20 @@
       expiredNow: active.filter(i => daysLeft(i.expiry, today) < 0).length };
   }
 
+  // 提醒橫幅文字:expired 已過期筆數、soon 在提醒天數內(未過期)筆數;沒有要提醒的回傳空字串
+  function bannerText(expired, soon, days) {
+    const within = days > 0 ? `在 ${days} 天內到期` : '今天到期';
+    if (expired) return `有 ${expired} 項已過期${soon ? `,另有 ${soon} 項快到期` : ''},請盡快處理`;
+    return soon ? `有 ${soon} 項${within}` : '';
+  }
+  // 已處理列的說明:何時處理、算不算浪費(與統計同口徑:沒有 outcome 的舊資料算用完)
+  function doneNote(item, today) {
+    const what = item.outcome === 'wasted' ? '過期才處理' : '用完';
+    if (!Number.isFinite(item.doneAt)) return what;
+    const [y, m, d] = todayStr(new Date(item.doneAt)).split('-').map(Number);
+    return `${y === Number(String(today).slice(0, 4)) ? '' : y + '/'}${m}/${d} ${what}`;
+  }
+
   // ---- 購物清單:吃完的物品可加入補貨;未買的同名項目合併數量 ----
   function makeShopItem(f, id, now = Date.now()) {
     const name = String(f.name || '').trim().slice(0, 40);
@@ -744,7 +758,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
