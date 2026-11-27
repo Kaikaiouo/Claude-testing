@@ -800,3 +800,13 @@ test('另一個分頁的資料:較新才採用,同 id 沿用原物件,壞資料�
   assert.equal(next.items[0], item);
   assert.equal(item.quantity, 1);
 });
+
+test('提醒天數:空白或超出範圍時維持原值,0 是有效值', () => {
+  assert.equal(HK.reminderDaysFrom('', 5), 5);
+  assert.equal(HK.reminderDaysFrom('  ', 5), 5);
+  assert.equal(HK.reminderDaysFrom('0', 5), 0);
+  assert.equal(HK.reminderDaysFrom('7.4', 5), 7);
+  assert.equal(HK.reminderDaysFrom('-1', 5), 5);
+  assert.equal(HK.reminderDaysFrom('61', 5), 5);
+  assert.equal(HK.reminderDaysFrom('abc', 5), 5);
+});

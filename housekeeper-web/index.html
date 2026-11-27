@@ -119,7 +119,7 @@
   .check { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-top:6px; } .check input { width:auto; accent-color:var(--brand); }
   .scanbox button { width:100%; padding:10px; border-style:dashed; } .scanbox .note { margin-top:4px; }
   #scanThumb { display:block; margin-top:8px; max-height:120px; max-width:100%; object-fit:cover; }
-  .errs { color:var(--expired); font-size:.85rem; margin-bottom:8px; }
+  .errs { color:var(--expired); font-size:.85rem; margin-top:12px; scroll-margin:12px 0; } .errs:empty { margin:0; }
   .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:14px; flex-wrap:wrap; } .btns .grow { margin-right:auto; }
   .note { font-size:.8rem; color:var(--muted); }
   .rcp { padding:12px 0; border-bottom:1px solid var(--line); } .rcp b { display:block; font-family:var(--display); letter-spacing:.06em; margin-bottom:2px; }
@@ -216,12 +216,11 @@
 <div class="sheetwrap" id="formWrap" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
   <h2 id="formTitle">新增物品</h2>
   <button class="ghost" id="bulkFromForm" type="button" hidden>一次新增多項…</button>
-  <div class="errs" id="formErrs"></div>
   <div class="field scanbox" id="scanBox" hidden><button type="button" id="scanBtn">📷 拍照/選圖辨識</button><input id="scanFile" type="file" accept="image/*" capture="environment" hidden><img id="scanThumb" alt="已選取的包裝照片預覽" hidden><div class="note" id="scanMsg" role="status" aria-live="polite">拍下包裝,由 Claude 讀出品名與有效日期(會使用你的 Claude 額度,結果請再確認)。</div></div>
-  <div class="field"><label for="fName">名稱</label><input id="fName" maxlength="40" placeholder="例如:鮮奶" autocomplete="off" list="nameList"><datalist id="nameList"></datalist><div class="quick" id="freqNames" hidden></div><div class="note" id="recallMsg" hidden></div></div>
+  <div class="field"><label for="fName">名稱</label><input id="fName" maxlength="40" placeholder="例如:鮮奶" autocomplete="off" list="nameList"><datalist id="nameList"></datalist><div class="quick" id="freqNames" hidden></div><div class="note" id="recallMsg" role="status" hidden></div></div>
   <div class="two">
     <div class="field"><label for="fCat">類別</label><select id="fCat"></select></div>
-    <div class="field"><label>數量</label><div class="qty"><button type="button" id="qMinus" aria-label="減少">−</button><input id="fQty" type="number" min="1" max="99" value="1" inputmode="numeric"><button type="button" id="qPlus" aria-label="增加">+</button></div></div>
+    <div class="field"><label for="fQty">數量</label><div class="qty"><button type="button" id="qMinus" aria-label="減少">−</button><input id="fQty" type="number" min="1" max="99" value="1" inputmode="numeric"><button type="button" id="qPlus" aria-label="增加">+</button></div></div>
   </div>
   <div class="field" id="milkRow" hidden><label>牛奶種類</label><div class="quick" id="milkQuick"></div></div>
   <div class="two">
@@ -240,6 +239,7 @@
   </div>
   <div class="field"><label for="fOpenDays">開封後幾天內吃完(可空)</label><input id="fOpenDays" type="number" min="1" max="365" inputmode="numeric" placeholder="例如保久乳填 7;空白依類別估算"></div>
   <div class="field"><label for="fNotes">備註</label><textarea id="fNotes" rows="2" maxlength="300"></textarea></div>
+  <div class="errs" id="formErrs" role="alert"></div>
   <div class="btns"><button id="fDelete" class="danger grow" hidden>刪除</button><button id="fCancel">取消</button><button id="fSave" class="primary">儲存</button></div>
 </div></div>
 
@@ -282,9 +282,9 @@
     <div class="field"><label for="sHour">提醒時間(整點)</label><select id="sHour"></select></div>
   </div>
   <p class="note">網頁版無法像 App 一樣在背景推播。這裡改用兩種方式:打開頁面時上方會顯示需要處理的物品;也可以匯出行事曆檔,匯入 iPhone 或 Google 行事曆後由行事曆提醒。</p>
-  <div class="field"><button id="sExport">匯出到期提醒行事曆(.ics)</button><div class="note" id="exportMsg"></div></div>
+  <div class="field"><button id="sExport">匯出到期提醒行事曆(.ics)</button><div class="note" id="exportMsg" role="status"></div></div>
   <div class="field"><button id="sCopy" type="button">複製 7 天內到期清單(文字)</button> <span class="note">可貼到 LINE 或備忘錄,方便規劃煮什麼。</span></div>
-  <div class="field"><button id="sBackup">備份資料(.json)</button> <button id="sCsv" type="button">匯出 CSV</button> <button id="sRestore">從備份還原</button><button id="sCsvIn" type="button">匯入 CSV</button><input id="sFile" type="file" accept=".json,application/json" hidden><input id="sCsvFile" type="file" accept=".csv,text/csv" hidden><div class="note" id="backupMsg">還原會與目前清單合併,相同項目以備份檔為準。</div></div>
+  <div class="field"><button id="sBackup">備份資料(.json)</button> <button id="sCsv" type="button">匯出 CSV</button> <button id="sRestore">從備份還原</button><button id="sCsvIn" type="button">匯入 CSV</button><input id="sFile" type="file" accept=".json,application/json" hidden><input id="sCsvFile" type="file" accept=".csv,text/csv" hidden><div class="note" id="backupMsg" role="status">還原會與目前清單合併,相同項目以備份檔為準。</div></div>
   <div class="field"><button id="sSample">載入範例資料</button> <span class="note">範例會加入清單,可自行刪除。</span></div>
   <div class="btns"><button id="sClose" class="primary">完成</button></div>
 </div></div>

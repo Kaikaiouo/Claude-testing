@@ -53,6 +53,8 @@
   // ---------- 清單 ----------
   let histAll = false, locFilter = '', query = '', stFilter = '', dayFilter = '', sortMode = 'expiry';
   try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
+  const currentFilters = () => ({ location: locFilter, query, status: stFilter, today: today(), expiry: dayFilter });
+  function clearFilters() { locFilter = query = stFilter = dayFilter = ''; $('search').value = ''; render(); }
   const STATUS_LABEL = { expired: '已過期', urgent: '快到期', soon: '一週內', ok: '安全' };
   const GROUP_LABEL = { expired: '已過期', urgent: '三天內', soon: '這一週', ok: '之後' };
 
@@ -80,8 +82,8 @@
     if (mode === 'done') {
       const acts = el('div', 'acts'), undo = el('button', '', '還原'), del = el('button', 'danger', '刪除');
       undo.onclick = () => { item.done = false; item.doneAt = null; delete item.outcome; commit(); };
-      del.onclick = () => { if (del.dataset.arm) { removeItem(item); } else { del.dataset.arm = '1'; del.textContent = '確定?'; setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; }, 2500); } };
-      fkey(undo, 'undo'); fkey(del, 'del'); acts.append(undo, del); li.append(acts);
+      del.onclick = () => { if (del.dataset.arm) { removeItem(item); } else { del.dataset.arm = '1'; del.textContent = '確定?'; del.setAttribute('aria-label', `確定刪除 ${item.name}?再按一次`); setTimeout(() => { del.dataset.arm = ''; del.textContent = '刪除'; del.setAttribute('aria-label', `${item.name} 刪除`); }, 2500); } };
+      fkey(undo, 'undo'); fkey(del, 'del'); undo.setAttribute('aria-label', `${item.name} 還原`); del.setAttribute('aria-label', `${item.name} 刪除`); acts.append(undo, del); li.append(acts);
     } else {
       const d = el('button', 'done-btn', '用完'); d.title = '標記為已用完/已處理'; fkey(d, 'use'); d.setAttribute('aria-label', `${item.name} 用完`);
       const canOpen = !item.openedAt && HK.openedDays(item.category, item.location, item.openDays);
@@ -149,14 +151,18 @@
     }
     // 清單
     const list = $('list'); list.textContent = '';
-    const shown = HK.sortItems(HK.filterItems(active, { location: locFilter, query, status: stFilter, today: t, expiry: dayFilter }), sortMode);
+    const shown = HK.sortItems(HK.filterItems(active, currentFilters()), sortMode);
     if (!shown.length) {
       const li = el('li', 'empty');
       if (!state.items.length) {
         li.append(emptyArt('new'), el('h2', '', '還沒有任何物品'), el('div', '', '記下冰箱和家裡會到期的東西,到期前會提醒你。'));
         const a = el('div', 'actions'), add = el('button', 'primary', '新增第一個物品'), sample = el('button', '', '載入範例看看');
         add.onclick = () => openForm(null); sample.onclick = () => { loadSample(); const x = $('list').querySelector('.info'); if (x && focusLost()) x.focus({ preventScroll: true }); }; a.append(add, sample); li.append(a);
-      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品,可取消日期篩選。` : stFilter ? `沒有「${STATUS_LABEL[stFilter]}」的物品,再點一次上方數字可取消篩選。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
+      } else li.append(emptyArt(active.length ? 'search' : 'done'), el('h2', '', active.length ? '沒有符合的物品' : '目前沒有待處理的物品'), el('div', '', active.length ? (dayFilter ? `${dayFilter.slice(5)} 沒有到期的物品。` : stFilter ? `目前的條件下沒有「${STATUS_LABEL[stFilter]}」的物品。` : '換個關鍵字或位置試試。') : '全部都處理完了!'));
+      if (active.length) {
+        const a = el('div', 'actions'), clear = el('button', '', '清除搜尋與篩選'); clear.type = 'button';
+        clear.onclick = () => { clearFilters(); const x = $('list').querySelector('.info'); if (x) x.focus({ preventScroll: true }); }; a.append(clear); li.append(a);
+      }
       list.append(li);
     } else {
       // 依到期日排序時分段(分級與上方摘要相同)
@@ -220,12 +226,12 @@
   // 提示條按鈕:收起提示條、做事,再把焦點放到復原回來的那一列,或原本的位置
   function runSnack(action) {
     const box = $('snack'), had = box.contains(document.activeElement), from = snackFrom, before = new Set(listKeys());
-    box.hidden = true; action();
+    box.hidden = true; const want = action(); // 動作可回傳想聚焦的 data-fk
     if (!had || (!box.hidden && box.contains(document.activeElement))) return;
     const w = openWrap(), back = listKeys().find(k => !before.has(k));
     // 文字輸入框不自動回去,免得手機又彈出鍵盤
     const usable = e => e && document.contains(e) && e !== document.body && !e.matches('textarea, input:not([type=checkbox])') && e.getClientRects().length && (!w || w.contains(e));
-    const target = [!w && byKey(back), from && byKey(from.key), from && from.el].find(usable) || (w ? w.querySelector('.sheet') : $('list').querySelector('.info') || addBtn());
+    const target = [!w && typeof want === 'string' && byKey(want), !w && byKey(back), from && byKey(from.key), from && from.el].find(usable) || (w ? w.querySelector('.sheet') : $('list').querySelector('.info') || addBtn());
     if (target) target.focus({ preventScroll: true });
   }
   function snack(text, actionLabel, action) {
@@ -290,7 +296,7 @@
         const t = el('span', 'nm', x.name + (x.quantity > 1 ? ` ×${x.quantity}` : '')); lab.append(cb, t); li.append(lab);
         const acts = el('div', 'acts');
         if (x.bought) {
-          const put = el('button', '', '放入清單'); put.title = '轉成要追蹤到期日的物品'; put.dataset.fk = `shop:${x.id}:put`;
+          const put = el('button', '', '放入清單'); put.title = '轉成要追蹤到期日的物品'; put.setAttribute('aria-label', `${x.name} 放入清單`); put.dataset.fk = `shop:${x.id}:put`;
           put.onclick = () => { $('shopWrap').hidden = true; shopFrom = x.id; openForm(null, HK.shopToForm(x, today(), state.items)); };
           acts.append(put);
         }
@@ -360,6 +366,8 @@
   $('qMinus').onclick = () => { $('fQty').value = Math.max(1, (+$('fQty').value || 1) - 1); };
   $('qPlus').onclick = () => { $('fQty').value = Math.min(99, (+$('fQty').value || 1) + 1); };
 
+  // 錯誤/再確認訊息放在儲存鈕上方;表單很長,從中段的按鈕觸發時要捲進畫面
+  const formError = text => { const e = $('formErrs'); e.textContent = text; e.scrollIntoView({ block: 'nearest' }); };
   let catTouched = false;
   let opened = ''; // 開啟表單當下的內容,用來判斷有沒有還沒儲存的修改
   const formValues = () => JSON.stringify([...$('formWrap').querySelectorAll('input:not([type=file]), select, textarea')].map(x => (x.type === 'checkbox' ? x.checked : x.value)));
@@ -562,23 +570,34 @@
   function applyForm() {
     if (!editing) return null;
     const r = readForm();
-    if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return null; }
+    if (r.errors.length) { formError(r.errors.join('、')); return null; }
     return saveEdit(r.item);
   }
   $('fSave').onclick = () => {
     const r = readForm();
-    if (r.errors.length) { $('formErrs').textContent = r.errors.join('、'); return; }
+    if (r.errors.length) { formError(r.errors.join('、')); return; }
     { const dw = HK.dateWarnings(r.item, today()), key = dw.join('|') + r.item.expiry;
-      if (dw.length && $('fSave').dataset.dateOk !== key) { $('formErrs').textContent = dw.join('、') + '。確定的話再按一次儲存。'; $('fSave').dataset.dateOk = key; return; } }
+      if (dw.length && $('fSave').dataset.dateOk !== key) { formError(dw.join('、') + '。確定的話再按一次儲存。'); $('fSave').dataset.dateOk = key; return; } }
     if (!editing && $('fSave').dataset.dupOk !== r.item.name + '|' + r.item.location) {
       const dup = HK.findDuplicate(state.items, r.item.name, r.item.location);
-      if (dup) { $('formErrs').textContent = `「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`; $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }
+      if (dup) { formError(`「${dup.name}」已在${dup.location}(${dup.expiry} 到期)。若是另一批,再按一次儲存。`); $('fSave').dataset.dupOk = r.item.name + '|' + r.item.location; return; }
     }
     $('fSave').dataset.dupOk = '';
+    const added = !editing;
     if (editing) saveEdit(r.item);
     else { state.items.push(r.item); if (shopFrom) state.shopping = state.shopping.filter(x => x.id !== shopFrom); }
     closeForm(); commit();
+    if (added) noteHidden(r.item);
   };
+  // 剛新增的物品被目前的搜尋或篩選擋住時,清單看起來像沒存到:講一聲並提供「顯示」
+  function noteHidden(item) {
+    if (HK.filterItems([item], currentFilters()).length) return;
+    snack(`已新增「${item.name}」,目前的篩選看不到它`, '顯示', () => {
+      clearFilters();
+      const row = byKey(`row:${item.id}:info`); if (row) row.scrollIntoView({ block: 'center' });
+      return `row:${item.id}:info`;
+    });
+  }
   $('fDelete').onclick = () => {
     const b = $('fDelete');
     if (!b.dataset.arm) { b.dataset.arm = '1'; b.textContent = '再按一次確認刪除'; return; }
@@ -591,7 +610,7 @@
     sel.onchange = () => { sortMode = HK.SORTS[sel.value] ? sel.value : 'expiry'; try { localStorage.setItem('hk-sort', sortMode); } catch (e) {} render(); }; }
   $('btnSettings').onclick = () => { $('sDays').value = state.settings.reminderDays; $('sHour').value = state.settings.reminderHour; $('exportMsg').textContent = ''; $('setWrap').hidden = false; };
   $('sClose').onclick = () => {
-    const d = Math.round(Number($('sDays').value)); const days = d >= 0 && d <= 60 ? d : 3, hour = +$('sHour').value;
+    const days = HK.reminderDaysFrom($('sDays').value, state.settings.reminderDays), hour = +$('sHour').value;
     $('setWrap').hidden = true;
     if (days === state.settings.reminderDays && hour === state.settings.reminderHour) return; // 沒改就不更新時間戳,避免蓋掉雲端
     state.settings.reminderDays = days; state.settings.reminderHour = hour; commit();
@@ -600,8 +619,8 @@
   $('sSample').onclick = () => { $('sClose').click(); loadSample(); }; // 先照「完成」收掉設定,改過的提醒天數才不會丟
   $('sCopy').onclick = () => { $('sClose').click(); copyText(HK.expiringText(state.items, today(), 7), '快到期清單'); };
   $('sExport').onclick = async () => {
-    const d = Math.round(Number($('sDays').value)), h = +$('sHour').value;
-    const ics = HK.toICS(state.items, { reminderDays: d >= 0 && d <= 60 ? d : 3, reminderHour: h }), msg = $('exportMsg');
+    const h = +$('sHour').value;
+    const ics = HK.toICS(state.items, { reminderDays: HK.reminderDaysFrom($('sDays').value, state.settings.reminderDays), reminderHour: h }), msg = $('exportMsg');
     if (!state.items.some(i => !i.done)) { msg.textContent = '目前沒有待處理的物品可匯出。'; return; }
     try {
       const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
