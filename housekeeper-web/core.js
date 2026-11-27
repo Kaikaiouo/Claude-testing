@@ -379,10 +379,10 @@
   // ---- CSV 匯出(Excel/Google 試算表可開;加 BOM 避免中文亂碼;開頭為 = + - @ 的欄位加單引號防公式注入)----
   function toCSV(items, today) {
     const q = v => { let s = v == null ? '' : String(v); if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const rows = [['名稱', '類別', '位置', '數量', '購買日', '到期日', '剩餘天數', '狀態', '到期日為估算', '已處理', '處理結果', '處理日']];
+    const rows = [['名稱', '類別', '位置', '數量', '購買日', '到期日', '剩餘天數', '狀態', '到期日為估算', '已處理', '處理結果', '處理日', '備註']];
     for (const i of items) {
       const d = daysLeft(i.expiry, today);
-      rows.push([i.name, i.category, i.location, i.quantity, i.purchase || '', i.expiry || '', d === null ? '' : d, i.done ? '已處理' : (STATUS_TAG[status(d)] || ''), i.estimated ? '是' : '', i.done ? '是' : '', i.done ? (i.outcome === 'wasted' ? '浪費' : '用完') : '', i.done && Number.isFinite(i.doneAt) ? todayStr(new Date(i.doneAt)) : '']);
+      rows.push([i.name, i.category, i.location, i.quantity, i.purchase || '', i.expiry || '', d === null ? '' : d, i.done ? '已處理' : (STATUS_TAG[status(d)] || ''), i.estimated ? '是' : '', i.done ? '是' : '', i.done ? (i.outcome === 'wasted' ? '浪費' : '用完') : '', i.done && Number.isFinite(i.doneAt) ? todayStr(new Date(i.doneAt)) : '', i.notes || '']);
     }
     return '\ufeff' + rows.map(r => r.map(q).join(',')).join('\r\n') + '\r\n';
   }
@@ -427,7 +427,7 @@
     const items = []; let skipped = 0, duplicates = 0;
     for (const r of rows.slice(1).slice(0, 2000)) {
       const done = get(r, '已處理') === '是';
-      const res = makeItem({ name: get(r, '名稱'), category: get(r, '類別'), location: get(r, '位置'), quantity: get(r, '數量') || 1, purchase: looseDate(get(r, '購買日')) || today, expiry: looseDate(get(r, '到期日')), estimated: get(r, '到期日為估算') === '是' }, today);
+      const res = makeItem({ name: get(r, '名稱'), category: get(r, '類別'), location: get(r, '位置'), quantity: get(r, '數量') || 1, purchase: looseDate(get(r, '購買日')) || today, expiry: looseDate(get(r, '到期日')), estimated: get(r, '到期日為估算') === '是', notes: get(r, '備註') }, today);
       if (!res.item) { skipped++; continue; }
       const key = keyOf(res.item), pool = done ? doneLeft : pendingLeft, left = pool.get(key) || 0;
       if (left) { pool.set(key, left - 1); duplicates++; continue; }
@@ -706,12 +706,13 @@
     }
     return out;
   }
-  function recipePrompt(list, today) {
+  // avoid:「換一批」時帶入已經建議過的菜名,免得又拿到同樣的幾道
+  function recipePrompt(list, today, avoid = []) {
     const lines = list.map(c => `- ${c.name}(${c.daysLeft === 0 ? '今天到期' : c.daysLeft + ' 天後到期'},放${c.location})`).join('\n');
     return `你是台灣家庭的料理助手。以下食材快到期,請想 3 道簡單家常菜,盡量一次用掉越多越好,其他只可再用常見調味料與家裡一定有的基本食材(油、鹽、醬油、蛋、米)。今天是 ${today}。
 ${lines}
 只回傳 JSON 陣列,不要其他文字:[{"title": 菜名(繁體中文,最多 16 字), "uses": 用到上面清單中的食材名稱陣列, "minutes": 預估分鐘數(整數), "how": 做法一兩句話(最多 80 字)}]
-食材若已有異味或外觀不對請不要建議食用;不要編造清單以外的食材當主料。`;
+食材若已有異味或外觀不對請不要建議食用;不要編造清單以外的食材當主料。` + (avoid.length ? `\n這些已經建議過了,請換不一樣的做法:${avoid.slice(-12).join('、')}` : '');
   }
   function parseRecipes(raw, list) {
     const arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.recipes) ? raw.recipes : null); if (!arr) return [];

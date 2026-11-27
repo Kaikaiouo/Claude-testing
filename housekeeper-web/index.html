@@ -131,6 +131,7 @@
   .bars { display:flex; flex-direction:column; gap:7px; margin:10px 0 14px; }
   .bar { display:grid; grid-template-columns:4.5em 1fr 2em; align-items:center; gap:8px; font-size:.85rem; }
   .bar i { display:block; height:8px; background:var(--muted); min-width:4px; } .bar em { font-style:normal; text-align:right; color:var(--muted); }
+  .bars.names .bar { grid-template-columns:40% 1fr 2em; } .bar span { min-width:0; overflow-wrap:anywhere; } /* 品名比週次、類別長 */
   .stackwrap { display:flex; } .stack { display:flex; gap:2px; height:8px; min-width:4px; } .stack i { height:8px; min-width:4px; background:var(--ok); } .stack i.w { background:var(--expired); }
   .legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:-6px; }
   .legend .dot { display:inline-block; width:9px; height:9px; background:var(--ok); margin-right:5px; } .legend .dot.w { background:var(--expired); }
@@ -150,6 +151,7 @@
   .shoprow.bought .nm { text-decoration:line-through; color:var(--muted); }
   .shopadd { display:flex; gap:8px; margin-top:12px; } .shopadd input { flex:1; min-width:0; } .shopadd button { flex:none; }
 
+  .sr-only { position:absolute; left:0; top:0; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   .snack { position:fixed; left:50%; transform:translateX(-50%); bottom:calc(68px + env(safe-area-inset-bottom, 0px)); z-index:40; width:max-content; max-width:calc(100% - 32px); background:var(--bar); color:var(--bar-fg); border-radius:2px; border:1px solid var(--edge); padding:8px 8px 8px 14px; display:flex; align-items:center; gap:8px; font-size:.88rem; }
   .snack[hidden] { display:none; }
   .snack button { color:inherit; font-weight:700; border-color:currentColor; white-space:nowrap; }
@@ -267,7 +269,9 @@
   <div class="btns"><button id="recipeAgain" type="button">換一批</button><button id="recipeClose" class="primary" type="button">關閉</button></div>
 </div></div>
 
-<div class="snack" id="snack" role="status" aria-live="polite" hidden></div>
+<div class="snack" id="snack" hidden></div>
+<!-- 螢幕報讀播報用:要一直留在頁面上,先顯示才填字的區域多半不會唸 -->
+<div class="sr-only" id="announce" role="status"></div>
 
 <div class="sheetwrap" id="statWrap" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="statTitle">
   <h2 id="statTitle">統計</h2>

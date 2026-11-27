@@ -234,7 +234,11 @@
     const target = [!w && typeof want === 'string' && byKey(want), !w && byKey(back), from && byKey(from.key), from && from.el].find(usable) || (w ? w.querySelector('.sheet') : $('list').querySelector('.info') || addBtn());
     if (target) target.focus({ preventScroll: true });
   }
+  // 播報給螢幕報讀:先清空再填,同樣的字連續出現兩次也會再唸
+  let sayTimer = null;
+  function announce(text) { const a = $('announce'); a.textContent = ''; clearTimeout(sayTimer); sayTimer = setTimeout(() => { a.textContent = text; }, 100); }
   function snack(text, actionLabel, action) {
+    announce(actionLabel ? `${text}。可按「${actionLabel}」` : text);
     const box = $('snack'); box.textContent = ''; clearTimeout(snackTimer);
     delete box.dataset.guard; box.append(el('span', '', text));
     if (actionLabel) { const b = el('button', 'ghost', actionLabel); b.type = 'button'; b.onclick = () => runSnack(action); box.append(b); }
@@ -254,7 +258,7 @@
     const box = $('snack'); clearTimeout(snackTimer); box.textContent = ''; delete box.dataset.guard;
     const ta = el('textarea'); ta.readOnly = true; ta.value = text; ta.rows = Math.min(8, text.split('\n').length); ta.setAttribute('aria-label', label + '(請全選後複製)'); ta.style.width = 'min(360px,70vw)';
     const ok = el('button', 'ghost', '關閉'); ok.type = 'button'; ok.onclick = () => runSnack(() => {});
-    box.append(ta, ok); box.hidden = false; ta.focus(); ta.select();
+    box.append(ta, ok); box.hidden = false; ta.focus(); ta.select(); announce(`無法自動複製,請手動複製${label}`);
   }
   function removeItem(item) {
     const idx = state.items.findIndex(i => i.id === item.id); if (idx < 0) return;
@@ -520,26 +524,29 @@
   };
 
   // 快到期食材想菜色(沿用 sample;只送品名與剩餘天數)
-  let recipeCtl = null;
-  async function openRecipes() {
+  let recipeCtl = null, recipeSeen = [];
+  async function openRecipes(again) {
     const list = HK.recipeCandidates(state.items, today()); if (!list.length || !sampleFn) return;
+    if (again !== true) recipeSeen = []; // 點擊事件物件也會傳進來,只認 true
     $('recipeWrap').hidden = false;
     $('recipeUse').textContent = '用到:' + list.map(c => c.name + (c.daysLeft === 0 ? '(今天)' : `(${c.daysLeft}天)`)).join('、');
-    const out = $('recipeOut'), btn = $('recipeAgain'); out.textContent = '正在想菜色…'; btn.disabled = true;
+    const out = $('recipeOut'), btn = $('recipeAgain'); const hadFocus = document.activeElement === btn; out.textContent = '正在想菜色…'; btn.disabled = true;
     if (recipeCtl) recipeCtl.abort(); const ctl = recipeCtl = new AbortController();
     try {
-      const raw = await sampleFn.json(HK.recipePrompt(list, today()), { modelTier: 'quick', signal: ctl.signal });
+      const raw = await sampleFn.json(HK.recipePrompt(list, today(), recipeSeen), { modelTier: 'quick', signal: ctl.signal });
+      if (recipeCtl !== ctl) return; // 面板關掉或又按了一次:丟掉舊結果
       const rs = HK.parseRecipes(raw, list); out.textContent = '';
       if (!rs.length) { out.textContent = '這次沒想出合適的菜色,再試一次看看。'; return; }
+      recipeSeen.push(...rs.map(r => r.title));
       for (const r of rs) {
         const d = el('div', 'rcp'); d.append(el('b', '', r.title + (r.minutes ? `・約 ${r.minutes} 分鐘` : '')), el('div', 'note', '用到:' + r.uses.join('、')), el('div', '', r.how)); out.append(d);
       }
       out.append(el('div', 'note', '食譜由 Claude 提供,僅供參考;食材若有異味或外觀不對請勿食用。'));
-    } catch (err) { if (ctl.signal.aborted) return; out.textContent = SCAN_ERR[err && err.code] || '想不出來,請稍後再試。'; }
-    finally { if (recipeCtl === ctl) { recipeCtl = null; btn.disabled = false; } }
+    } catch (err) { if (ctl.signal.aborted || recipeCtl !== ctl) return; out.textContent = SCAN_ERR[err && err.code] || '想不出來,請稍後再試。'; }
+    finally { if (recipeCtl === ctl) { recipeCtl = null; btn.disabled = false; if (hadFocus && focusLost() && !$('recipeWrap').hidden) btn.focus(); } }
   }
   const closeRecipes = () => { if (recipeCtl) recipeCtl.abort(); recipeCtl = null; $('recipeWrap').hidden = true; };
-  $('recipeClose').onclick = closeRecipes; $('recipeAgain').onclick = openRecipes;
+  $('recipeClose').onclick = closeRecipes; $('recipeAgain').onclick = () => openRecipes(true);
   onBackdrop('recipeWrap', closeRecipes);
 
   // 一次新增多項
@@ -695,7 +702,7 @@
       }
       if (s.topWasted.length) {
         body.append(el('h2', '', '最常過期才處理'));
-        const tw = el('div', 'bars'), tmax = s.topWasted[0].count;
+        const tw = el('div', 'bars names'), tmax = s.topWasted[0].count;
         for (const c of s.topWasted) { const r = el('div', 'bar'), i = el('i'); i.style.width = Math.max(4, c.count / tmax * 100) + '%'; i.style.background = 'var(--expired)'; r.append(el('span', '', c.name), i, el('em', '', String(c.count))); tw.append(r); }
         body.append(tw);
       }
@@ -762,7 +769,12 @@
     if (e.key === '/') { e.preventDefault(); $('search').focus(); }
     else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openForm(null); }
   });
-  $('search').addEventListener('input', e => { query = e.target.value; render(); });
+  let countTimer = null;
+  $('search').addEventListener('input', e => {
+    query = e.target.value; render();
+    // 停下打字後才報筆數,免得每個字都插話
+    clearTimeout(countTimer); countTimer = setTimeout(() => { if (query.trim()) announce(`符合 ${HK.filterItems(state.items.filter(i => !i.done), currentFilters()).length} 項`); }, 700);
+  });
   // 頁面開著過夜:回到畫面或每分鐘檢查日期,換日就重算剩餘天數
   const refreshDay = () => { if (renderedDay !== today()) render(); };
   setInterval(refreshDay, 60000);

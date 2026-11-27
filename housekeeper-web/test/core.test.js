@@ -411,7 +411,7 @@ test('toCSV:BOM、跳脫逗號與引號、公式注入防護、狀態與處理�
   assert.ok(lines[1].startsWith('"牛奶, ""特濃""",乳製品,冷藏,1,'));
   assert.ok(lines[1].includes(',-1,已過期,'));
   assert.ok(lines[2].startsWith("'=CMD(),"));
-  assert.ok(lines[3].endsWith(',是,浪費,')); // 最後是「處理日」,沒有 doneAt 時留空
+  assert.ok(lines[3].endsWith(',是,浪費,,')); // 最後兩欄是「處理日」「備註」,沒有 doneAt、沒備註時留空
 });
 
 test('dateWarnings:早於購買日、過期一年多、5 年後會提醒;正常日期無提醒', () => {
@@ -809,4 +809,22 @@ test('提醒天數:空白或超出範圍時維持原值,0 是有效值', () => {
   assert.equal(HK.reminderDaysFrom('-1', 5), 5);
   assert.equal(HK.reminderDaysFrom('61', 5), 5);
   assert.equal(HK.reminderDaysFrom('abc', 5), 5);
+});
+
+test('CSV 匯出再匯入保留備註(含換行、逗號與公式開頭)', () => {
+  const a = HK.makeItem({ name: '果醬', expiry: '2027-01-01', quantity: 1, notes: '阿嬤做的,冰最下層\n開了要快吃' }, '2026-11-27').item;
+  const b = HK.makeItem({ name: '藥膏', expiry: '2027-02-01', quantity: 1, notes: '=一天兩次' }, '2026-11-27').item;
+  const csv = HK.toCSV([a, b], '2026-11-27');
+  assert.ok(csv.includes("'=一天兩次"));
+  const r = HK.parseCSV(csv, '2026-11-27');
+  assert.deepStrictEqual(r.items.map(i => i.notes), [a.notes, b.notes]);
+  assert.strictEqual(HK.parseCSV('名稱,到期日\n米,2027-01-01\n', '2026-11-27').items[0].notes, '');
+});
+
+test('想菜色「換一批」把建議過的菜名帶進提示,最多 12 道', () => {
+  const list = [{ name: '雞蛋', daysLeft: 1, location: '冷藏' }];
+  assert.ok(!HK.recipePrompt(list, '2026-11-27').includes('已經建議過'));
+  const seen = Array.from({ length: 15 }, (_, k) => `菜${k + 1}號`);
+  const p = HK.recipePrompt(list, '2026-11-27', seen);
+  assert.ok(p.includes('菜15號') && p.includes('菜4號') && !p.includes('菜3號'));
 });
