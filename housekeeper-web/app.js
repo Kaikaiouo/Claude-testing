@@ -561,7 +561,17 @@
   onBackdrop('recipeWrap', closeRecipes);
 
   // 一次新增多項
-  const bulkSync = () => { const r = HK.parseBulk($('bulkText').value, today()); $('bulkPrev').textContent = r.items.length ? `將加入 ${r.items.length} 項:` + r.items.slice(0, 8).map(i => `${i.name}×${i.quantity}(${i.category}/${i.location})`).join('、') + (r.items.length > 8 ? '…' : '') + (r.skipped.length ? `;略過 ${r.skipped.length} 行無法辨識` : '') : ''; $('bulkSave').disabled = !r.items.length; };
+  // 預覽逐項列出到期日,加入前就能看出日期有沒有讀對
+  const bulkSync = () => {
+    const r = HK.parseBulk($('bulkText').value, today()), lines = [];
+    if (r.items.length) {
+      lines.push(`將加入 ${r.items.length} 項:`);
+      for (const i of r.items.slice(0, 8)) lines.push(`${i.name}×${i.quantity}(${i.location}・${HK.shortDay(i.expiry, today())} 到期${i.estimated ? ',估算' : ''})`);
+      if (r.items.length > 8) lines.push(`…還有 ${r.items.length - 8} 項`);
+    }
+    if (r.skipped.length) lines.push(`略過無法辨識的:${r.skipped.slice(0, 3).join('、')}${r.skipped.length > 3 ? ` 等 ${r.skipped.length} 行` : ''}`);
+    $('bulkPrev').textContent = lines.join('\n'); $('bulkSave').disabled = !r.items.length;
+  };
   $('bulkFromForm').onclick = () => { closeForm(); $('bulkOpen').onclick(); };
   $('bulkOpen').onclick = () => { $('bulkText').value = ''; $('bulkScanMsg').textContent = ''; bulkSync(); $('bulkWrap').hidden = false; setTimeout(() => $('bulkText').focus(), 50); };
   $('bulkText').oninput = bulkSync;
@@ -571,7 +581,8 @@
     const r = HK.parseBulk($('bulkText').value, today()); if (!r.items.length) return;
     state.items.push(...r.items); closeBulk(); commit();
     const ids = new Set(r.items.map(i => i.id));
-    snack(`已加入 ${r.items.length} 項(到期日為估算)`, '復原', () => { state.items = state.items.filter(i => !ids.has(i.id)); commit(); });
+    const guessed = r.items.filter(i => i.estimated).length;
+    snack(`已加入 ${r.items.length} 項${guessed ? `(${guessed === r.items.length ? '' : `其中 ${guessed} 項`}到期日為估算)` : ''}`, '復原', () => { state.items = state.items.filter(i => !ids.has(i.id)); commit(); });
   };
   const closeForm = () => { dropGuard(); stopScan(); $('formWrap').hidden = true; editing = null; shopFrom = null; };
   $('fab').onclick = () => openForm(null);

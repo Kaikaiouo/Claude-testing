@@ -321,6 +321,12 @@
   }
 
   // 提醒橫幅文字:expired 已過期筆數、soon 在提醒天數內(未過期)筆數;沒有要提醒的回傳空字串
+  // 「12/3」;跨年份才帶年
+  function shortDay(day, today) {
+    const [y, m, d] = String(day).split('-').map(Number);
+    return `${String(day).slice(0, 4) === String(today).slice(0, 4) ? '' : y + '/'}${m}/${d}`;
+  }
+
   function bannerText(expired, soon, days) {
     const within = days > 0 ? `在 ${days} 天內到期` : '今天到期';
     if (expired) return `有 ${expired} 項已過期${soon ? `,另有 ${soon} 項快到期` : ''},請盡快處理`;
@@ -642,6 +648,18 @@
     // 容易被後面的字誤判的詞放最前面(例:雞蛋含「雞」、牛油果含「牛」、豬油含「豬」、山藥含「藥」)
     ['蔬菜', '冷藏', ['山藥'], 10],
     ['蔬菜', '冷藏', ['牛蒡', '牛番茄', '牛蕃茄', '雞腿菇']],
+    // 名字裡帶著蔬菜、茶、鹽、酒、蘋果,其實是別類的東西
+    ['日用品', '櫃子', ['便當盒', '便當袋', '沙拉脫']],
+    ['調味料', '常溫', ['番茄醬', '蕃茄醬', '沙茶', '沙拉醬', '美乃滋', '料理米酒', '料理酒', '壽司醋', '涼麵醬', '滷包', '滷味包']],
+    ['飲料', '常溫', ['無酒精', '蘋果西打']],
+    ['藥品', '藥箱', ['生理食鹽水', '酒精', '優碘', '雙氧水', 'OK繃', 'ok繃', 'Ok繃']],
+    ['其他', '常溫', ['壽司米', '壽司海苔', '乾香菇']],
+    // 熟食、即食品放不久:超商鮮食以當天或隔天為準;剩菜熟食冷藏 3 天(USDA 建議 3–4 天,取保守值)
+    ['其他', '冷藏', ['飯糰', '便當', '壽司', '三明治', '涼麵'], 1],
+    ['其他', '冷藏', ['茶碗蒸'], 2],
+    ['其他', '冷藏', ['剩菜', '剩飯', '剩湯', '熟食', '滷味', '滷菜', '味噌湯', '紫菜湯'], 3],
+    ['其他', '常溫', ['紫菜']],
+    ['其他', '冷凍', ['蔥油餅', '蔥抓餅']],
     ['肉類', '冷藏', ['藥燉', '藥膳'], 3],
     ['藥品', '藥箱', ['魚油', '葉黃素']],
     ['日用品', '櫃子', ['藥皂']],
@@ -702,6 +720,17 @@
     for (const yy of [yr, yr + 1]) { const s = `${yy}-${pad(+mo)}-${pad(+d)}`, t = parseDay(s); if (t !== null && t >= tt - 30 * 86400000) return s; }
     return null;
   }
+  // 從行尾取出到期日:「12/3」「12月3號」「115/12/3」(民國)「20261203」,前面可有「有效期限:」,外面可有括號
+  const DATE_LABEL = '(?:有效期限|有效日期|保存期限|賞味期限|到期日|效期|期限|到期|exp(?:iry)?\\.?)';
+  const DATE_TAIL = new RegExp(`^(.*?)\\s*[((【]?\\s*(?:${DATE_LABEL}\\s*[::]?\\s*)?(?:(?:民國)?\\s*(?<!\\d)(\\d{4}|1\\d{2})[-/.年])?(?<!\\d)(\\d{1,2})[-/.月](\\d{1,2})[日號]?\\s*(?:前|止|到期)?\\s*[))】]?$`, 'i');
+  const DATE_SOLID = new RegExp(`^(.*?)(?:\\s+|${DATE_LABEL}\\s*[::]?\\s*)(20\\d{2})(\\d{2})(\\d{2})$`, 'i');
+  function splitDate(text, today) {
+    const m = DATE_SOLID.exec(text) || DATE_TAIL.exec(text); if (!m) return null;
+    const name = m[1].replace(new RegExp(`\\s*${DATE_LABEL}\\s*[::]?$`, 'i'), '').trim(); if (!name) return null;
+    const year = m[2] && m[2].length === 3 ? +m[2] + 1911 : m[2];
+    const date = bulkDate(year, m[3], m[4], today);
+    return date ? { name, date } : null;
+  }
   function parseBulk(text, today) {
     const parts = String(text || '').split(/[\n\r,，、;；]+/), map = new Map(), skipped = [];
     for (let raw of parts) {
@@ -709,14 +738,18 @@
       let qty = 1, name = raw, m, given = null, forceLoc = null;
       const lm = name.match(/\s*[@＠]\s*(冷藏|冷凍|常溫|櫃子|藥箱)\s*/);
       if (lm) { forceLoc = lm[1]; name = (name.slice(0, lm.index) + ' ' + name.slice(lm.index + lm[0].length)).trim(); }
-      const dm = name.match(/^(.*?)\s*(?:到期|exp\.?)?\s*(?:(\d{4})[-\/.])?(\d{1,2})[-\/.月](\d{1,2})日?$/i);
-      if (dm && dm[1].trim()) { const d = bulkDate(dm[2], dm[3], dm[4], today); if (d) { given = d; name = dm[1]; } }
-      if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; }
+      // 日期後面又寫數量(「鮮奶 12/3 x2」「鮮奶 12/3 2瓶」):先把數量拿掉,日期才在結尾
+      let counted = false;
+      if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/)) || (m = name.match(/^(.*?)\s+(\d{1,2})\s*(?:個|瓶|包|盒|顆|條|片|袋|罐|組|入)$/))) { name = m[1]; qty = +m[2]; counted = true; }
+      const dated = splitDate(name, today);
+      if (dated) { name = dated.name; given = dated.date; }
+      if (!counted && (m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; counted = true; }
       // 緊接在英文字母後、又沒有單位的數字是品名的一部分(維他命B12、輔酵素Q10),不是數量
-      else if ((m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/)) && (m[3] || !/[A-Za-z]\d+$/.test(name))) { name = m[1]; qty = +m[2]; }
+      if (!counted && (m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/)) && (m[3] || !/[A-Za-z]\d+$/.test(name))) { name = m[1]; qty = +m[2]; }
       name = name.trim();
       if (!name || /[\d]\s*[\/.\-:]\s*$|[\/.\-:]$/.test(name) || name.length > 40 || !(qty >= 1 && qty <= 99)) { skipped.push(raw); continue; }
-      const key = name.replace(/\s+/g, '').toLowerCase(), prev = map.get(key);
+      // 同名但到期日或指定的存放位置不同,是兩批東西,分開記(併在一起會弄丟其中一個日期)
+      const key = [name.replace(/\s+/g, '').toLowerCase(), given || '', forceLoc || ''].join('|'), prev = map.get(key);
       if (prev) { prev.quantity = Math.min(99, prev.quantity + qty); continue; }
       let g = guessCategory(name) || { category: '其他', location: '冷藏' };
       if (forceLoc && forceLoc !== g.location) g = { category: g.category, location: forceLoc };
@@ -779,7 +812,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { shortDay, saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

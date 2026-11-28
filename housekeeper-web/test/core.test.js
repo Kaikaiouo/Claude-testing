@@ -874,3 +874,45 @@ test('雲端容量:快滿與超過上限時的同步訊息', () => {
   assert.match(HK.syncText(false, HK.CLOUD_LIMIT + 1), /存不下/);
   assert.match(HK.syncText(false, 10), /同步失敗/);
 });
+
+test('guessCategory:熟食即食品給短天數,名字帶菜、茶、鹽、酒的不再誤判', () => {
+  const g = HK.guessCategory;
+  for (const n of ['飯糰', '雞腿便當', '鮪魚三明治', '壽司']) assert.deepStrictEqual(g(n), { category: '其他', location: '冷藏', days: 1 }, n);
+  for (const n of ['剩菜', '滷味', '味噌湯']) assert.strictEqual(g(n).days, 3, n);
+  assert.strictEqual(g('茶碗蒸').location, '冷藏');
+  for (const n of ['番茄醬', '沙茶醬', '料理米酒', '滷味包', '壽司醋']) assert.strictEqual(g(n).category, '調味料', n);
+  for (const n of ['生理食鹽水', '酒精', 'OK繃']) assert.strictEqual(g(n).category, '藥品', n);
+  assert.strictEqual(g('蘋果西打').category, '飲料');
+  assert.strictEqual(g('無酒精啤酒').category, '飲料');
+  assert.strictEqual(g('便當盒').category, '日用品');
+  assert.strictEqual(g('沙拉油').category, '調味料');
+  assert.strictEqual(g('番茄').category, '蔬菜');
+  assert.strictEqual(g('紫菜').location, '常溫');
+});
+
+test('parseBulk:有效期限標籤、民國年、8 位數、括號、號、日期後接數量', () => {
+  const one = s => HK.parseBulk(s, '2026-11-28').items[0];
+  for (const s of ['鮮奶 有效期限:12/3', '鮮奶 保存期限12/3', '鮮奶 到期日 12/3', '鮮奶(12/3)', '鮮奶 12/3前', '鮮奶 12月3號', '鮮奶 115/12/3', '鮮奶 民國115年12月3日', '鮮奶 20261203', '鮮奶 exp 2026.12.03']) {
+    const i = one(s);
+    assert.ok(i, s); assert.deepStrictEqual([i.name, i.expiry, i.quantity, i.estimated], ['鮮奶', '2026-12-03', 1, false], s);
+  }
+  for (const s of ['鮮奶 12/3 x2', '鮮奶 12/3 2瓶', '鮮奶x2 (12/3)', '鮮奶 2瓶 12/3']) {
+    const i = one(s);
+    assert.deepStrictEqual([i.name, i.expiry, i.quantity], ['鮮奶', '2026-12-03', 2], s);
+  }
+  assert.strictEqual(one('可樂 1.5L').name, '可樂 1.5L');
+  assert.strictEqual(one('維他命B12').quantity, 1);
+  assert.strictEqual(one('雞蛋 10').quantity, 10);
+  assert.deepStrictEqual(HK.parseBulk('鮮奶 2/30', '2026-11-28').items, []);
+});
+
+test('shortDay:同年省略年份', () => {
+  assert.strictEqual(HK.shortDay('2026-12-03', '2026-11-28'), '12/3');
+  assert.strictEqual(HK.shortDay('2027-01-05', '2026-11-28'), '2027/1/5');
+});
+
+test('parseBulk:同名但到期日或位置不同分開記,完全相同才合併', () => {
+  const r = HK.parseBulk('鮮奶 12/10\n鮮奶 11/30\n鮮奶 11/30\n雞胸肉 @冷凍\n雞胸肉', '2026-11-28');
+  assert.deepStrictEqual(r.items.map(i => [i.name, i.quantity, i.location, i.estimated ? '' : i.expiry]),
+    [['鮮奶', 1, '冷藏', '2026-12-10'], ['鮮奶', 2, '冷藏', '2026-11-30'], ['雞胸肉', 1, '冷凍', ''], ['雞胸肉', 1, '冷藏', '']]);
+});
