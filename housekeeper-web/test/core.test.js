@@ -855,3 +855,22 @@ test('已處理紀錄可改處理結果:applyEdit 保留處理日,統計跟著�
   assert.strictEqual(HK.stats([fixed], '2026-11-27').wasted, 0);
   assert.strictEqual(HK.filterItems([fixed], { query: '鮮' }).length, 1);
 });
+
+test('存檔失敗依原因說明,行事曆檔被擋要講清楚', () => {
+  assert.match(HK.saveErrorText('declined', 'a.json'), /已取消/);
+  assert.match(HK.saveErrorText('rejected_extension', 'housekeeper-expiry.ics'), /行事曆檔/);
+  assert.doesNotMatch(HK.saveErrorText('rejected_extension', 'a.csv'), /行事曆/);
+  assert.match(HK.saveErrorText('unavailable', 'a.json'), /無法下載/);
+  assert.match(HK.saveErrorText(undefined), /沒有儲存成功/);
+});
+
+test('雲端容量:快滿與超過上限時的同步訊息', () => {
+  assert.equal(HK.cloudBytes({ a: '中' }), Buffer.byteLength(JSON.stringify({ a: '中' })));
+  assert.equal(HK.cloudLevel(1000), 'ok');
+  assert.equal(HK.cloudLevel(HK.CLOUD_LIMIT * 0.9), 'near');
+  assert.equal(HK.cloudLevel(HK.CLOUD_LIMIT + 1), 'over');
+  assert.equal(HK.syncText(true, 10), '已同步到雲端');
+  assert.match(HK.syncText(true, HK.CLOUD_LIMIT * 0.9), /快滿/);
+  assert.match(HK.syncText(false, HK.CLOUD_LIMIT + 1), /存不下/);
+  assert.match(HK.syncText(false, 10), /同步失敗/);
+});

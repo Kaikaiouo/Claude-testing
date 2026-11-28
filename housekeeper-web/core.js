@@ -238,6 +238,27 @@
     return n >= 0 && n <= 60 ? n : fallback;
   }
 
+  // ---- 存檔失敗的說明:Artifact 的 downloads 能力以 code 區分原因 ----
+  function saveErrorText(code, name = '') {
+    if (code === 'declined') return '已取消,沒有儲存。';
+    if (code === 'rate_limited') return '沒有儲存:請先處理跳出的儲存視窗,或稍等一下再試。';
+    if (code === 'rejected_extension' || code === 'extension_not_enabled') return /\.ics$/.test(name)
+      ? '這個頁面不能下載行事曆檔(.ics)。打開本頁時上方仍會提醒,也可以用下面的「複製清單」貼到行事曆或備忘錄。'
+      : '沒有儲存:這個頁面不開放下載這種檔案。';
+    if (['unavailable', 'host_unavailable', 'not_granted', 'capability_disabled', 'capability_removed', 'transform_error'].includes(code)) return '沒有儲存:這裡無法下載檔案,請改用瀏覽器開啟本頁再試。';
+    return '沒有儲存成功,請再試一次。';
+  }
+
+  // ---- 雲端容量:整份清單存成一個 db 文件,上限 256 KiB;快滿時提醒清舊紀錄 ----
+  const CLOUD_LIMIT = 256 * 1024;
+  const cloudBytes = state => new TextEncoder().encode(JSON.stringify(state)).length;
+  const cloudLevel = bytes => (bytes > CLOUD_LIMIT ? 'over' : bytes > CLOUD_LIMIT * 0.8 ? 'near' : 'ok');
+  function syncText(ok, bytes) {
+    const level = cloudLevel(bytes);
+    if (ok) return level === 'ok' ? '已同步到雲端' : '已同步到雲端,但容量快滿了:建議備份後清除舊的「已處理」紀錄';
+    return level === 'over' ? '資料太多,雲端存不下(仍保存在這個裝置):請備份後清除舊的「已處理」紀錄' : '雲端同步失敗,資料仍保存在這個裝置';
+  }
+
   // ---- iCalendar 匯出:每個未處理物品一個全天事件 + 提前提醒 ----
   const icsEscape = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
   function fold(line) {
@@ -758,7 +779,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

@@ -21,8 +21,9 @@
   async function flush() {
     if (writing || !dirty || !cloudDoc) return;
     writing = true; dirty = false;
-    try { await cloudDoc.set(JSON.parse(JSON.stringify(state))); failed = false; setSync('已同步到雲端'); }
-    catch (e) { failed = true; setSync('雲端同步失敗,資料仍保存在這個裝置'); }
+    const doc = JSON.parse(JSON.stringify(state)), bytes = HK.cloudBytes(doc);
+    try { await cloudDoc.set(doc); failed = false; setSync(HK.syncText(true, bytes)); }
+    catch (e) { failed = true; setSync(HK.syncText(false, bytes)); }
     writing = false; if (dirty) flush();
   }
   async function initCloud() {
@@ -36,9 +37,9 @@
         const remote = snap.exists ? snap.data() : null;
         if (snap.metadata && snap.metadata.hasPendingWrites) return;
         const act = HK.syncAction(state, remote);
-        if (act === 'adopt') { state = HK.adoptState(state, HK.cleanState(JSON.parse(JSON.stringify(remote))).state); state.settings = Object.assign(DEFAULT().settings, state.settings); saveLocal(); render(); setSync('已同步到雲端'); }
+        if (act === 'adopt') { state = HK.adoptState(state, HK.cleanState(JSON.parse(JSON.stringify(remote))).state); state.settings = Object.assign(DEFAULT().settings, state.settings); saveLocal(); render(); refreshShop(); setSync(HK.syncText(true, HK.cloudBytes(state))); }
         else if (act === 'push') { dirty = true; flush(); }
-        else setSync('已同步到雲端');
+        else if (!failed) setSync(HK.syncText(true, HK.cloudBytes(state))); // 上傳失敗的訊息要留著
       }, () => setSync('雲端不可用,資料保存在這個裝置'));
     } catch (e) { /* 沒有雲端:維持本機模式 */ }
   }
@@ -639,29 +640,36 @@
     const h = +$('sHour').value;
     const ics = HK.toICS(state.items, { reminderDays: HK.reminderDaysFrom($('sDays').value, state.settings.reminderDays), reminderHour: h }), msg = $('exportMsg');
     if (!state.items.some(i => !i.done)) { msg.textContent = '目前沒有待處理的物品可匯出。'; return; }
-    try {
-      const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-      if (dl) { await dl.save({ filename: 'housekeeper-expiry.ics', data: new Blob([ics], { type: 'text/calendar' }) }); msg.textContent = '已匯出,用行事曆 App 開啟檔案即可加入提醒。'; }
-      else { const a = el('a'); a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' })); a.download = 'housekeeper-expiry.ics'; document.body.append(a); a.click(); a.remove(); msg.textContent = '已下載 housekeeper-expiry.ics。'; }
-    } catch (e) { msg.textContent = '沒有儲存成功(可能被取消了)。'; }
+    const name = 'housekeeper-expiry.ics';
+    try { await saveFile(name, ics, 'text/calendar'); msg.textContent = `已匯出 ${name},用行事曆 App 開啟即可加入提醒。`; }
+    catch (e) { msg.textContent = HK.saveErrorText(e && e.code, name); }
   };
 
   // 備份/還原
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
   if (!lsGet('hk-backup-since')) lsSet('hk-backup-since', today());
+  // Claude 頁面裡只能走 downloads 能力:拿不到就當失敗(<a download> 在沙盒裡沒作用,卻會誤報成功)
   async function saveFile(name, text, type) {
-    const dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-    if (dl) return dl.save({ filename: name, data: new Blob([text], { type }) });
-    const a = el('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.append(a); a.click(); a.remove();
+    const data = new Blob([text], { type });
+    if (window.claude && window.claude.use) {
+      const dl = await window.claude.use('downloads');
+      if (!dl) throw { code: 'unavailable' };
+      return dl.save({ filename: name, data });
+    }
+    const a = el('a'); a.href = URL.createObjectURL(data); a.download = name; document.body.append(a); a.click(); a.remove();
   }
+  // 橫幅的「現在備份」在設定面板外按:訊息改用提示條,不然看不到有沒有成功
+  function backupSay(text) { $('backupMsg').textContent = text; if ($('setWrap').hidden) snack(text); }
   $('sBackup').onclick = async () => {
-    try { await saveFile('housekeeper-backup-' + today() + '.json', HK.exportBackup(state), 'application/json'); lsSet('hk-backup', today()); render(); $('backupMsg').textContent = `已備份 ${state.items.length} 項物品。`; }
-    catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
+    const name = 'housekeeper-backup-' + today() + '.json';
+    try { await saveFile(name, HK.exportBackup(state), 'application/json'); lsSet('hk-backup', today()); render(); backupSay(`已備份 ${state.items.length} 項物品。`); }
+    catch (e) { backupSay(HK.saveErrorText(e && e.code, name)); }
   };
   $('sCsv').onclick = async () => {
-    try { await saveFile('housekeeper-items-' + today() + '.csv', HK.toCSV(state.items, today()), 'text/csv'); $('backupMsg').textContent = `已匯出 ${state.items.length} 項物品為 CSV(可用試算表開啟)。`; }
-    catch (e) { $('backupMsg').textContent = '沒有儲存成功(可能被取消了)。'; }
+    const name = 'housekeeper-items-' + today() + '.csv';
+    try { await saveFile(name, HK.toCSV(state.items, today()), 'text/csv'); $('backupMsg').textContent = `已匯出 ${state.items.length} 項物品為 CSV(可用試算表開啟)。`; }
+    catch (e) { $('backupMsg').textContent = HK.saveErrorText(e && e.code, name); }
   };
   $('sCsvIn').onclick = () => $('sCsvFile').click();
   $('sCsvFile').onchange = async e => {
