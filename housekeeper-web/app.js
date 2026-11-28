@@ -53,6 +53,10 @@
 
   // ---------- 清單 ----------
   let histAll = false, locFilter = '', query = '', stFilter = '', dayFilter = '', sortMode = 'expiry';
+  // 很窄的手機放不下完整提示字(aria-label 不受影響)
+  const narrow = matchMedia('(max-width: 360px)'), searchHint = $('search').placeholder;
+  const fitHint = () => { $('search').placeholder = narrow.matches ? '搜尋' : searchHint; };
+  narrow.addEventListener('change', fitHint); fitHint();
   try { const s = localStorage.getItem('hk-sort'); if (HK.SORTS[s]) sortMode = s; } catch (e) {}
   const currentFilters = () => ({ location: locFilter, query, status: stFilter, today: today(), expiry: dayFilter });
   function clearFilters() { locFilter = query = stFilter = dayFilter = ''; $('search').value = ''; render(); }

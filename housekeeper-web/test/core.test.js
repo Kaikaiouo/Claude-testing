@@ -992,3 +992,25 @@ test('freezeText:列出品名,超過三項縮寫', () => {
   assert.strictEqual(HK.freezeText([it('雞胸肉'), it('鮮奶')]), '已移到冷凍:「雞胸肉」、「鮮奶」(到期日為估算)');
   assert.strictEqual(HK.freezeText(['a', 'b', 'c', 'd'].map(it)), '已移到冷凍:「a」、「b」、「c」 等 4 項(到期日為估算)');
 });
+
+test('guessCategory:米與乾豆、火鍋料、即食品等常見詞,反例不誤判', () => {
+  const g = n => { const r = HK.guessCategory(n); return r && [r.category, r.location, r.days || null]; };
+  for (const n of ['米', '紫米', '五穀米', '越光米2kg', '紅豆', '有機黃豆', '黑豆 1包']) assert.deepEqual(g(n), ['其他', '常溫', 180], n);
+  for (const n of ['糯米腸', '糯米椒', '小米辣', '蜜紅豆']) assert.notDeepEqual(g(n), ['其他', '常溫', 180], n);
+  assert.deepEqual(g('玉米'), ['蔬菜', '冷藏', 10]);
+  assert.deepEqual(g('米酒'), ['飲料', '常溫', null]);
+  assert.deepEqual(g('蝦米'), ['其他', '冷藏', 90]);
+  assert.deepEqual(g('紅豆麵包'), ['其他', '常溫', 4]);
+  for (const n of ['火鍋料', '甜不辣', '米血', '小籠包']) assert.deepEqual(g(n), ['肉類', '冷藏', 3], n);
+  for (const n of ['生菜沙拉', '馬鈴薯沙拉', '漢堡', '披薩']) assert.deepEqual(g(n), ['其他', '冷藏', 1], n);
+  assert.deepEqual(g('沙拉油'), ['調味料', '常溫', null]);
+  assert.deepEqual(g('沙拉脫'), ['日用品', '櫃子', null]);
+  assert.deepEqual(g('沙拉筍'), ['蔬菜', '冷藏', 5]);
+  assert.deepEqual(g('漢堡排'), ['肉類', '冷藏', 2]);
+  assert.deepEqual(g('漢堡麵包'), ['其他', '常溫', 4]);
+  assert.deepEqual(g('披薩起司'), ['乳製品', '冷藏', null]);
+  assert.deepEqual(g('冷凍披薩'), ['其他', '冷凍', null]);
+  assert.deepEqual(g('油麵'), ['其他', '冷藏', 5]);
+  assert.deepEqual(g('香水'), ['保養品', '櫃子', null]);
+  assert.deepEqual(g('貓飼料'), ['其他', '常溫', null]);
+});
