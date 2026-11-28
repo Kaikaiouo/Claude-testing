@@ -386,18 +386,25 @@
     const h = recallItem(items, s.name, today), same = !!h && h.category === category && h.location === location;
     const l = LOCATIONS.find(x => x.name === location);
     const expiry = estimateExpiry(s.name, category, location, today, items);
-    return { name: s.name, category, location, quantity: s.quantity, purchase: today, expiry, estimated: true, openDays: same ? h.openDays : '', tempC: same ? h.tempC : l && l.tempC !== null ? l.tempC : '' };
+    // rough:沒有紀錄、品名也認不出類別,到期日只是通用天數,介面要特別提醒
+    const rough = !h && category === '其他' && location === '冷藏' && !guessCategory(s.name);
+    return { name: s.name, category, location, quantity: s.quantity, purchase: today, expiry, estimated: true, openDays: same ? h.openDays : '', tempC: same ? h.tempC : l && l.tempC !== null ? l.tempC : '', rough };
   }
 
   // 已買好的購物清單項目一次放入庫存(到期日依類別估算,標為估算);回傳新物品與剩餘清單
   function shopBoughtToItems(shopping, today, history = []) {
-    const items = [], rest = [], moved = [];
+    const items = [], rest = [], moved = [], rough = [];
     for (const s of shopping || []) {
       if (!s.bought) { rest.push(s); continue; }
-      const r = makeItem(shopToForm(s, today, history), today);
-      if (r.item) { items.push(r.item); moved.push(s); } else rest.push(s);
+      const f = shopToForm(s, today, history), r = makeItem(f, today);
+      if (r.item) { items.push(r.item); moved.push(s); if (f.rough) rough.push(r.item.name); } else rest.push(s);
     }
-    return { items, shopping: rest, moved };
+    return { items, shopping: rest, moved, rough };
+  }
+
+  function shopPutText(count, rough = []) {
+    if (!rough.length) return `已放入 ${count} 項(到期日為估算)`;
+    return `已放入 ${count} 項(到期日為估算)。認不出類別:${rough.slice(0, 2).join('、')}${rough.length > 2 ? ` 等 ${rough.length} 項` : ''},請對照包裝改日期`;
   }
 
   // ---- 文字分享:快到期清單、購物清單(可貼到 LINE / 備忘錄)----
@@ -652,6 +659,10 @@
     ['日用品', '櫃子', ['便當盒', '便當袋', '沙拉脫']],
     ['調味料', '常溫', ['番茄醬', '蕃茄醬', '沙茶', '沙拉醬', '美乃滋', '料理米酒', '料理酒', '壽司醋', '涼麵醬', '滷包', '滷味包']],
     ['飲料', '常溫', ['無酒精', '蘋果西打']],
+    ['調味料', '常溫', ['豆腐乳', '巧克力醬', '辣椒醬', '辣椒油', '辣椒粉', '椰子油', '干貝醬', '煉乳']],
+    ['乳製品', '冷藏', ['巧克力牛奶', '巧克力鮮奶', '調味乳'], 7],
+    ['藥品', '藥箱', ['膠原蛋白', '維生素', 'B群', '葉酸', '鈣片', '鼻噴', '紗布']],
+    ['其他', '冷藏', ['滴雞精']],
     ['藥品', '藥箱', ['生理食鹽水', '酒精', '優碘', '雙氧水', 'OK繃', 'ok繃', 'Ok繃']],
     ['其他', '常溫', ['壽司米', '壽司海苔', '乾香菇']],
     // 熟食、即食品放不久:超商鮮食以當天或隔天為準;剩菜熟食冷藏 3 天(USDA 建議 3–4 天,取保守值)
@@ -664,8 +675,8 @@
     ['藥品', '藥箱', ['魚油', '葉黃素']],
     ['日用品', '櫃子', ['藥皂']],
     // 乾貨、零食、糕餅:名字裡有肉、魚、蝦、水果、奶、蛋,但不是生鮮
-    ['其他', '常溫', ['肉鬆', '魚鬆', '肉乾', '果乾', '葡萄乾', '莓乾', '蝦味先', '牛奶糖', '牛軋糖', '糖果', '巧克力', '蛋捲', '蛋白粉', '奶粉', '麵粉', '太白粉']],
-    ['其他', '常溫', ['鳳梨酥', '太陽餅', '桃酥', '月餅'], 14],
+    ['其他', '常溫', ['肉鬆', '魚鬆', '肉乾', '果乾', '葡萄乾', '莓乾', '蝦味先', '牛奶糖', '牛軋糖', '糖果', '巧克力', '蛋捲', '蛋白粉', '奶粉', '麵粉', '太白粉', '喉糖', '口香糖', '肉紙', '米果', '蜜餞', '話梅', '蘇打餅', '瓜子']],
+    ['其他', '常溫', ['鳳梨酥', '太陽餅', '桃酥', '月餅', '蛋黃酥', '芋頭酥', '柿餅'], 14],
     ['其他', '冷藏', ['蛋餅', '茶葉蛋', '蘿蔔糕', '豆花', '愛玉', '仙草'], 3],
     ['調味料', '常溫', ['肉桂', '蘋果醋', '蜂蜜']],
     ['飲料', '常溫', ['果汁', '檸檬汁', '葡萄汁', '莓汁', '柳丁汁', '番茄汁', '燕麥奶', '米漿']],
@@ -682,23 +693,25 @@
     ['其他', '常溫', ['麵包', '吐司', '土司', '貝果', '饅頭', '包子'], 4],
     ['其他', '常溫', ['泡麵', '餅乾', '零食', '罐頭', '洋芋片', '麥片', '糙米', '白米', '米粉', '冬粉', '義大利麵', '堅果', '海苔']],
     ['藥品', '藥箱', ['藥', '感冒', '止痛', '維他命', '益生菌', '眼藥', '消炎', '貼布', '口罩']],
-    ['保養品', '櫃子', ['洗面乳', '乳液', '面膜', '精華', '防曬', '化妝水', '卸妝', '護手霜', '洗髮', '沐浴', '牙膏']],
-    ['日用品', '櫃子', ['衛生紙', '洗衣', '洗碗', '洗潔', '電池', '垃圾袋', '漂白', '柔軟精']],
+    ['保養品', '櫃子', ['洗面乳', '乳液', '面膜', '精華', '防曬', '化妝水', '卸妝', '護手霜', '洗髮', '沐浴', '牙膏', '漱口水', '保濕', '口紅', '粉底', '染髮']],
+    ['日用品', '櫃子', ['衛生紙', '洗衣', '洗碗', '洗潔', '電池', '垃圾袋', '漂白', '柔軟精', '衛生棉', '尿布', '濕紙巾', '保鮮膜', '鋁箔', '洗手乳', '肥皂', '香皂', '牙刷', '刮鬍刀', '蚊香', '殺蟲', '芳香劑', '濾心', '棉花棒']],
     // 以下為保守的冷藏天數估計(參考 USDA FoodKeeper 的一般範圍,以包裝與食材狀態為準);要放在同類別的一般列之前
     ['蔬菜', '冷藏', ['泡菜', '榨菜', '醃菜'], 30],
     ['乳製品', '冷藏', ['鮮奶油'], 10],
     ['乳製品', '冷藏', ['牛奶', '鮮奶'], 7],
     ['乳製品', '冷藏', ['優格', '優酪'], 10],
-    ['肉類', '冷藏', ['絞肉', '肉末', '魚', '蝦', '蟹', '花枝', '透抽', '蛤', '海鮮', '鮭'], 2],
+    ['肉類', '冷藏', ['絞肉', '肉末', '魚', '蝦', '蟹', '花枝', '透抽', '蛤', '海鮮', '鮭', '牡蠣', '蚵', '蜆', '干貝', '小卷'], 2],
     ['肉類', '冷藏', ['雞', '豬', '牛排', '羊', '鴨', '排骨', '肉片', '肉絲'], 3],
     ['水果', '冷藏', ['草莓', '藍莓', '葡萄', '荔枝'], 5],
     ['蔬菜', '冷藏', ['高麗菜', '白菜', '蘿蔔', '馬鈴薯', '洋蔥', '南瓜', '地瓜', '玉米', '花椰'], 10],
     ['蔬菜', '冷藏', ['青江菜', '菠菜', '空心菜', '小白菜', '地瓜葉', '萵苣', '生菜', '芹菜', '韭菜', '豆芽', '菜'], 4],
     ['乳製品', '冷藏', ['牛奶', '鮮奶', '優格', '優酪', '起司', '乳酪', '奶油', '鮮奶油', '保久乳', '布丁']],
-    ['肉類', '冷藏', ['雞', '豬', '牛', '羊', '鴨', '肉', '排骨', '火腿', '香腸', '培根', '魚', '蝦', '蟹', '花枝', '透抽', '蛤', '海鮮', '鮭']],
-    ['水果', '冷藏', ['蘋果', '香蕉', '葡萄', '芭樂', '柳丁', '橘', '柑', '西瓜', '木瓜', '芒果', '鳳梨', '草莓', '藍莓', '奇異果', '檸檬', '梨', '桃', '李', '柚', '荔枝', '水果']],
-    ['蔬菜', '冷藏', ['菜', '蔥', '蒜', '薑', '菇', '蘿蔔', '番茄', '蕃茄', '黃瓜', '小黃瓜', '玉米', '地瓜', '馬鈴薯', '洋蔥', '高麗', '花椰', '青椒', '茄子', '豆芽', '南瓜', '絲瓜', '豆腐']],
-    ['飲料', '常溫', ['茶', '咖啡', '汽水', '可樂', '果汁', '豆漿', '氣泡水', '礦泉水', '運動飲料', '啤酒', '酒']],
+    ['肉類', '冷藏', ['雞', '豬', '牛', '羊', '鴨', '肉', '排骨', '火腿', '香腸', '培根', '熱狗', '臘腸', '魚', '蝦', '蟹', '花枝', '透抽', '蛤', '海鮮', '鮭']],
+    ['水果', '冷藏', ['蘋果', '香蕉', '葡萄', '芭樂', '柳丁', '橘', '柑', '西瓜', '木瓜', '芒果', '鳳梨', '草莓', '藍莓', '奇異果', '檸檬', '梨', '桃', '李', '柚', '荔枝', '蓮霧', '百香果', '棗子', '釋迦', '柿子', '哈密瓜', '香瓜', '水果']],
+    ['蔬菜', '冷藏', ['菜', '蔥', '蒜', '薑', '菇', '蘿蔔', '番茄', '蕃茄', '黃瓜', '小黃瓜', '玉米', '地瓜', '馬鈴薯', '洋蔥', '高麗', '花椰', '青椒', '茄子', '豆芽', '南瓜', '絲瓜', '豆腐', '九層塔', '甜椒', '辣椒', '芋頭']],
+    // 乾貨放在肉類、蔬菜之後:「蚵仔麵線」是鮮食,不是乾麵線
+    ['其他', '常溫', ['麵線', '燕麥', '穀片', '薏仁']],
+    ['飲料', '常溫', ['舒跑', '椰奶', '高粱', '茶', '咖啡', '汽水', '可樂', '果汁', '豆漿', '氣泡水', '礦泉水', '運動飲料', '啤酒', '酒']],
     ['調味料', '常溫', ['醬油', '醋', '鹽', '糖', '油', '醬', '胡椒', '味噌', '味醂', '麻油', '香料', '咖哩', '高湯']],
   ];
   function guessCategory(name) {
@@ -837,7 +850,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { shortDay, saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { shortDay, saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, shopPutText, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();

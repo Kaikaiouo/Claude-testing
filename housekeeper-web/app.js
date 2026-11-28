@@ -323,7 +323,7 @@
       if (list.some(x => !x.bought)) { const cp = el('button', '', '複製待買清單'); cp.type = 'button'; cp.onclick = () => copyText(HK.shoppingText(state.shopping), '購物清單'); const w0 = el('div', 'btns'); w0.append(cp); body.append(w0); }
       if (list.some(x => x.bought)) { const ab = el('button', 'primary', `已買的全部放入清單(${list.filter(x => x.bought).length})`); ab.type = 'button'; ab.title = '到期日依上次紀錄或品名估算,之後可再編輯';
         ab.onclick = () => { const r = HK.shopBoughtToItems(state.shopping, today(), state.items); if (!r.items.length) return; const prevShop = state.shopping; state.items.push(...r.items); state.shopping = r.shopping; commit(); showShop(); render();
-          snack(`已放入 ${r.items.length} 項(到期日為估算)`, '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = HK.restoreShopping(state.shopping, r.moved.map(x => ({ item: x, idx: prevShop.indexOf(x) }))); commit(); refreshShop(); }); };
+          snack(HK.shopPutText(r.items.length, r.rough), '復原', () => { const ids = new Set(r.items.map(i => i.id)); state.items = state.items.filter(i => !ids.has(i.id)); state.shopping = HK.restoreShopping(state.shopping, r.moved.map(x => ({ item: x, idx: prevShop.indexOf(x) }))); commit(); refreshShop(); }); };
         const wa = el('div', 'btns'); wa.append(ab); body.append(wa); }
       if (list.some(x => x.bought)) { const c = el('button', '', '清除已買的'); c.type = 'button'; c.onclick = () => { const r = HK.removeShopping(state.shopping, x => x.bought); state.shopping = r.shopping; commit(); showShop(); snack(`已清除 ${r.removed.length} 項已買的`, '復原', () => { state.shopping = HK.restoreShopping(state.shopping, r.removed); commit(); refreshShop(); }); }; const w = el('div', 'btns'); w.append(c); body.append(w); }
     }
@@ -399,7 +399,7 @@
     if (pre) { $('fName').value = pre.name; $('fCat').value = pre.category; $('fQty').value = pre.quantity; $('fLoc').value = pre.location; $('fTemp').value = pre.tempC; $('fPurchase').value = pre.purchase; $('fExpiry').value = pre.expiry; $('fEst').checked = true; $('fOpenDays').value = pre.openDays || ''; }
     stopScan(); $('scanMsg').textContent = '';
     $('outcomeRow').hidden = !(item && item.done); $('fOutcome').value = item && item.outcome === 'wasted' ? 'wasted' : 'used';
-    $('recallMsg').hidden = true; const dl = $('nameList'); dl.textContent = ''; for (const n of HK.knownNames(state.items, 50, state.shopping)) dl.append(new Option(n, n));
+    $('recallMsg').hidden = !(pre && pre.rough); $('recallMsg').textContent = pre && pre.rough ? `認不出「${pre.name}」的類別,到期日是暫估 ${HK.daysLeft(pre.expiry, today())} 天,請對照包裝修改` : ''; const dl = $('nameList'); dl.textContent = ''; for (const n of HK.knownNames(state.items, 50, state.shopping)) dl.append(new Option(n, n));
     const fq = $('freqNames'); fq.textContent = ''; const fn = item ? [] : HK.frequentNames(state.items);
     for (const n of fn) { const b = el('button', '', n); b.type = 'button'; b.onclick = () => { $('fName').value = n; $('fName').dispatchEvent(new Event('change')); }; fq.append(b); } fq.hidden = !fn.length;
     $('fCat').onchange(); syncOpened(); syncFreeze();

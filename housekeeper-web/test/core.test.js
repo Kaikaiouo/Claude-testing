@@ -942,3 +942,33 @@ test('parseBulk:認不出類別又沒寫日期的列在 unknown', () => {
   const r = HK.parseBulk('神祕東西\n鮮奶\n某某物 12/3\n怪東西 @冷凍', '2026-11-28');
   assert.deepStrictEqual(r.items.filter(i => r.unknown.has(i.id)).map(i => i.name), ['神祕東西', '怪東西']);
 });
+
+test('常見台灣品名分類:易混詞與先前認不出的品名', () => {
+  const g = n => { const r = HK.guessCategory(n); return r ? `${r.category}/${r.location}` : null; };
+  const want = {
+    '調味料/常溫': ['豆腐乳', '巧克力醬', '辣椒醬', '椰子油', '干貝醬', '煉乳'],
+    '乳製品/冷藏': ['巧克力牛奶', '調味乳'],
+    '藥品/藥箱': ['膠原蛋白', '維生素C', 'B群', '鈣片', '鼻噴劑'],
+    '其他/冷藏': ['滴雞精'],
+    '其他/常溫': ['喉糖', '口香糖', '豬肉紙', '香瓜子', '蛋黃酥', '芋頭酥', '麵線', '燕麥', '穀片'],
+    '保養品/櫃子': ['漱口水', '口紅', '粉底液'],
+    '日用品/櫃子': ['衛生棉', '尿布', '洗手乳', '香皂', '牙刷', '保鮮膜', '棉花棒'],
+    '肉類/冷藏': ['蚵仔', '牡蠣', '干貝', '小卷', '熱狗', '臘腸', '蚵仔麵線'],
+    '水果/冷藏': ['蓮霧', '百香果', '釋迦', '哈密瓜', '香瓜', '香水檸檬'],
+    '蔬菜/冷藏': ['九層塔', '甜椒', '辣椒', '芋頭'],
+    '飲料/常溫': ['舒跑', '椰奶', '高粱', '燕麥奶'],
+  };
+  for (const [k, names] of Object.entries(want)) for (const n of names) assert.strictEqual(g(n), k, n);
+});
+
+test('購物清單放入庫存:認不出類別的品名要標示暫估', () => {
+  assert.strictEqual(HK.shopToForm(HK.makeShopItem({ name: '神祕商品' }), T).rough, true);
+  assert.strictEqual(HK.shopToForm(HK.makeShopItem({ name: '鮮奶' }), T).rough, false);
+  const old = HK.makeItem({ name: '神祕商品', category: '其他', location: '冷藏', quantity: 1, purchase: T, expiry: HK.addDays(T, 9) }, T).item;
+  assert.strictEqual(HK.shopToForm(HK.makeShopItem({ name: '神祕商品' }), T, [old]).rough, false);
+  const list = ['神祕商品', '鮮奶', '另一個怪東西', '第三個怪東西'].map(name => HK.makeShopItem({ name, bought: true }));
+  const r = HK.shopBoughtToItems(list, T);
+  assert.deepStrictEqual(r.rough, ['神祕商品', '另一個怪東西', '第三個怪東西']);
+  assert.match(HK.shopPutText(4, r.rough), /認不出類別:神祕商品、另一個怪東西 等 3 項/);
+  assert.strictEqual(HK.shopPutText(2, []), '已放入 2 項(到期日為估算)');
+});
