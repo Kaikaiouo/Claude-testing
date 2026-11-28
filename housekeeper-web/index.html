@@ -259,7 +259,7 @@
 
 <div class="sheetwrap" id="bulkWrap" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
   <h2 id="bulkTitle">一次新增多項</h2>
-  <div class="note">買菜回來一次輸入:每行一個品名,可加數量(「鮮奶 x2」)、包裝上的到期日(「優格 11/20」)與存放位置(「雞胸肉 @冷凍」,可選冷藏、冷凍、常溫、櫃子、藥箱)。沒寫到期日的會依品名猜保存天數並標為估算,請事後對照包裝。</div>
+  <div class="note">買菜回來一次輸入:每行一個品名,可加數量(「鮮奶 x2」「雞蛋兩盒」)、包裝上的到期日(「優格 11/20」)與存放位置(「雞胸肉 @冷凍」,可選冷藏、冷凍、常溫、櫃子、藥箱)。沒寫到期日的會依品名猜保存天數並標為估算,請事後對照包裝。</div>
   <textarea id="bulkText" rows="6" aria-label="品名清單" placeholder="鮮奶 x2 11/20&#10;雞胸肉 @冷凍&#10;雞蛋&#10;青江菜&#10;豆腐" style="width:100%;margin-top:8px"></textarea>
   <div id="bulkScanBox" hidden style="margin-top:8px"><button class="ghost" id="bulkScan" type="button">📷 拍照辨識多件商品</button><label class="note" style="display:flex;gap:8px;align-items:center;justify-content:flex-start;margin-top:6px"><input type="checkbox" id="bulkReceipt" style="width:auto;flex:none;margin:0"> 這是購物收據(略過價格,只列要管保存期限的)</label><input type="file" id="bulkScanFile" accept="image/*" hidden><div class="note" id="bulkScanMsg" aria-live="polite"></div></div>
   <div class="note" id="bulkPrev" aria-live="polite" style="white-space:pre-line;overflow-wrap:anywhere"></div>

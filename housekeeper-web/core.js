@@ -731,7 +731,29 @@
     const date = bulkDate(year, m[3], m[4], today);
     return date ? { name, date } : null;
   }
+  // 中文數量與寫在前面的數量:「鮮奶兩瓶」→「鮮奶 2瓶」、「兩瓶鮮奶」「2盒雞蛋」→「鮮奶 x2」。
+  // 一定要接量詞才算(三明治、五花肉、九層塔是品名);「一條根」「四個月…」「五片裝…」也不是數量
+  const MEASURE = '(?:個|瓶|包|盒|顆|條|片|袋|罐|組|入|把|支|根)';
+  const CN_NUM = '(?:[二兩三四五六七八九]?十[一二三四五六七八九]?|[一二兩三四五六七八九])';
+  // 行尾只換中文數字(阿拉伯數字原本的規則就認得);行首兩種都換,但「入」多半是包裝規格(3入組衛生紙)
+  const NUM_SUFFIX = new RegExp(`(?<![一二兩三四五六七八九十第])\\s*(${CN_NUM})(${MEASURE})(?=\\s|$)`);
+  const NUM_PREFIX = new RegExp(`^(${CN_NUM}|\\d{1,2})(?!入)(${MEASURE})(?![月裝入])\\s*(\\D.*)$`);
+  const NOT_COUNT = /^(?:[一二兩三\d]條根|三支雨傘)/; // 以數字開頭的商品名
+  function cnNumber(s) {
+    if (/^\d+$/.test(s)) return +s;
+    const d = c => (c === '兩' ? 2 : '一二三四五六七八九'.indexOf(c) + 1);
+    const t = s.indexOf('十');
+    return t < 0 ? d(s) : (t ? d(s[0]) : 1) * 10 + (s[t + 1] ? d(s[t + 1]) : 0);
+  }
+  function normalizeCount(line) {
+    const m = NUM_SUFFIX.exec(line);
+    if (m && m.index > 0) return `${line.slice(0, m.index)} ${cnNumber(m[1])}${m[2]}${line.slice(m.index + m[0].length)}`;
+    const p = NOT_COUNT.test(line) ? null : NUM_PREFIX.exec(line);
+    // 後面已經寫了 x2 之類的數量就不重複換
+    return p && !/[x×*X]\s*\d/.test(p[3]) ? `${p[3]} x${cnNumber(p[1])}` : line;
+  }
   function parseBulk(text, today) {
+    const unknown = new Set();
     const parts = String(text || '').split(/[\n\r,，、;；]+/), map = new Map(), skipped = [];
     for (let raw of parts) {
       raw = raw.replace(/^[\s\-•*·●]*\d+[.)](?!\d)\s*/, '').replace(/^[\s\-•*·●]+/, '').trim(); if (!raw) continue;
@@ -739,27 +761,30 @@
       const lm = name.match(/\s*[@＠]\s*(冷藏|冷凍|常溫|櫃子|藥箱)\s*/);
       if (lm) { forceLoc = lm[1]; name = (name.slice(0, lm.index) + ' ' + name.slice(lm.index + lm[0].length)).trim(); }
       // 日期後面又寫數量(「鮮奶 12/3 x2」「鮮奶 12/3 2瓶」):先把數量拿掉,日期才在結尾
+      name = normalizeCount(name);
       let counted = false;
-      if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/)) || (m = name.match(/^(.*?)\s+(\d{1,2})\s*(?:個|瓶|包|盒|顆|條|片|袋|罐|組|入)$/))) { name = m[1]; qty = +m[2]; counted = true; }
+      if ((m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/)) || (m = name.match(/^(.*?)\s+(\d{1,2})\s*(?:個|瓶|包|盒|顆|條|片|袋|罐|組|入|把|支|根)$/))) { name = m[1]; qty = +m[2]; counted = true; }
       const dated = splitDate(name, today);
       if (dated) { name = dated.name; given = dated.date; }
       if (!counted && (m = name.match(/^(.*?)\s*[x×*X]\s*(\d{1,4})\s*[^\s\d]{0,2}$/))) { name = m[1]; qty = +m[2]; counted = true; }
       // 緊接在英文字母後、又沒有單位的數字是品名的一部分(維他命B12、輔酵素Q10),不是數量
-      if (!counted && (m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|盒|組|入)?$/)) && (m[3] || !/[A-Za-z]\d+$/.test(name))) { name = m[1]; qty = +m[2]; }
+      if (!counted && (m = name.match(/^(.*?\D)\s*(\d{1,2})\s*(個|瓶|包|盒|顆|條|片|袋|罐|組|入|把|支|根)?$/)) && (m[3] || !/[A-Za-z]\d+$/.test(name))) { name = m[1]; qty = +m[2]; }
       name = name.trim();
       if (!name || /[\d]\s*[\/.\-:]\s*$|[\/.\-:]$/.test(name) || name.length > 40 || !(qty >= 1 && qty <= 99)) { skipped.push(raw); continue; }
       // 同名但到期日或指定的存放位置不同,是兩批東西,分開記(併在一起會弄丟其中一個日期)
       const key = [name.replace(/\s+/g, '').toLowerCase(), given || '', forceLoc || ''].join('|'), prev = map.get(key);
       if (prev) { prev.quantity = Math.min(99, prev.quantity + qty); continue; }
-      let g = guessCategory(name) || { category: '其他', location: '冷藏' };
+      const guessed = guessCategory(name);
+      let g = guessed || { category: '其他', location: '冷藏' };
       if (forceLoc && forceLoc !== g.location) g = { category: g.category, location: forceLoc };
       const loc = LOCATIONS.find(l => l.name === g.location);
       const exp = given || (g.days ? addDays(today, g.days) : suggestExpiry(g.category, g.location, today).date);
       const r = makeItem({ name, category: g.category, location: g.location, quantity: qty, purchase: today, expiry: exp, estimated: !given, tempC: loc && loc.tempC !== null ? loc.tempC : '' }, today);
-      if (r.item) map.set(key, r.item); else skipped.push(raw);
+      if (r.item) { map.set(key, r.item); if (!guessed && !given) unknown.add(r.item.id); } else skipped.push(raw);
       if (map.size >= 50) break;
     }
-    return { items: [...map.values()], skipped };
+    // unknown:認不出類別又沒寫日期的 id,到期日只是通用估算,介面要特別提醒
+    return { items: [...map.values()], skipped, unknown };
   }
 
   // ---- 快到期食材想菜色(需 sample 能力;只送品名與剩餘天數,不送其他資料) ----

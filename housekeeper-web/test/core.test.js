@@ -916,3 +916,29 @@ test('parseBulk:同名但到期日或位置不同分開記,完全相同才合併
   assert.deepStrictEqual(r.items.map(i => [i.name, i.quantity, i.location, i.estimated ? '' : i.expiry]),
     [['鮮奶', 1, '冷藏', '2026-12-10'], ['鮮奶', 2, '冷藏', '2026-11-30'], ['雞胸肉', 1, '冷凍', ''], ['雞胸肉', 1, '冷藏', '']]);
 });
+
+test('parseBulk:中文數量與寫在前面的數量', () => {
+  const one = s => { const i = HK.parseBulk(s, '2026-11-28').items[0]; return [i.name, i.quantity]; };
+  for (const [s, name, q] of [['鮮奶兩瓶', '鮮奶', 2], ['雞蛋 一盒', '雞蛋', 1], ['兩瓶鮮奶', '鮮奶', 2], ['2盒雞蛋', '雞蛋', 2],
+    ['十二顆蘋果', '蘋果', 12], ['蘋果二十顆', '蘋果', 20], ['牙刷三支', '牙刷', 3], ['一把青菜', '青菜', 1], ['三顆蛋', '蛋', 3], ['兩個便當 @冷凍', '便當', 2], ['B12兩瓶', 'B12', 2]])
+    assert.deepStrictEqual(one(s), [name, q], s);
+});
+
+test('parseBulk:中文數量可與日期並用', () => {
+  for (const s of ['鮮奶兩瓶 12/3', '鮮奶 12/3 兩瓶', '兩瓶鮮奶 12/3']) {
+    const i = HK.parseBulk(s, '2026-11-28').items[0];
+    assert.deepStrictEqual([i.name, i.quantity, i.expiry], ['鮮奶', 2, '2026-12-03'], s);
+  }
+});
+
+test('parseBulk:帶中文數字的品名不當成數量', () => {
+  for (const s of ['三明治', '五花肉', '九層塔', '四季豆', '百香果', '一條根貼布', '四個月寶寶米餅', '五片裝面膜', '三合一咖啡', '兩百片', '第一包', '3入組衛生紙', '2條根', '三支雨傘標友露安', '十全十美'])
+    assert.deepStrictEqual(HK.parseBulk(s, '2026-11-28').items.map(i => [i.name, i.quantity]), [[s, 1]], s);
+  const x = HK.parseBulk('三入組衛生紙 x2', '2026-11-28').items[0];
+  assert.deepStrictEqual([x.name, x.quantity], ['三入組衛生紙', 2]);
+});
+
+test('parseBulk:認不出類別又沒寫日期的列在 unknown', () => {
+  const r = HK.parseBulk('神祕東西\n鮮奶\n某某物 12/3\n怪東西 @冷凍', '2026-11-28');
+  assert.deepStrictEqual(r.items.filter(i => r.unknown.has(i.id)).map(i => i.name), ['神祕東西', '怪東西']);
+});

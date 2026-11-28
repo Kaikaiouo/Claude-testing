@@ -569,6 +569,11 @@
       for (const i of r.items.slice(0, 8)) lines.push(`${i.name}×${i.quantity}(${i.location}・${HK.shortDay(i.expiry, today())} 到期${i.estimated ? ',估算' : ''})`);
       if (r.items.length > 8) lines.push(`…還有 ${r.items.length - 8} 項`);
     }
+    const odd = r.items.filter(i => r.unknown.has(i.id));
+    if (odd.length) {
+      const days = [...new Set(odd.map(i => HK.daysLeft(i.expiry, today())))].join('、');
+      lines.push(`認不出類別:${odd.slice(0, 3).map(i => i.name).join('、')}${odd.length > 3 ? ` 等 ${odd.length} 項` : ''},暫估 ${days} 天,可能不準。知道日期請接在後面,例如「${odd[0].name} ${HK.shortDay(HK.addDays(today(), 7), today())}」。`);
+    }
     if (r.skipped.length) lines.push(`略過無法辨識的:${r.skipped.slice(0, 3).join('、')}${r.skipped.length > 3 ? ` 等 ${r.skipped.length} 行` : ''}`);
     $('bulkPrev').textContent = lines.join('\n'); $('bulkSave').disabled = !r.items.length;
   };
