@@ -972,3 +972,23 @@ test('購物清單放入庫存:認不出類別的品名要標示暫估', () => {
   assert.match(HK.shopPutText(4, r.rough), /認不出類別:神祕商品、另一個怪東西 等 3 項/);
   assert.strictEqual(HK.shopPutText(2, []), '已放入 2 項(到期日為估算)');
 });
+
+test('canFreeze:不建議冷凍帶殼蛋、罐頭、乾貨、生菜瓜果等;熟食、麵包、一般食材仍可', () => {
+  const mk = (name, category, location) => ({ name, category, location, expiry: '2026-11-29', quantity: 1 });
+  const check = name => { const g = HK.guessCategory(name) || { category: '其他', location: '冷藏' }; return HK.canFreeze(mk(name, g.category, g.location)); };
+  for (const n of ['雞蛋', '洗選蛋', '茶葉蛋', '皮蛋', '鮪魚罐頭', '玉米罐頭', '泡麵', '餅乾', '生菜', '小黃瓜', '西瓜', '馬鈴薯', '白蘿蔔', '高麗菜', '優格', '布丁', '鮮奶油', '寵物飼料', '白米', '感冒藥'])
+    assert.strictEqual(check(n), false, n);
+  for (const n of ['雞胸肉', '鮮奶', '起司', '青江菜', '紅蘿蔔', '胡蘿蔔', '蘿蔔糕', '香蕉', '豆腐', '吐司', '饅頭', '蛋糕', '蛋餅', '剩菜', '便當'])
+    assert.strictEqual(check(n), true, n);
+  // 使用者把肉放常溫(多半是耐放包裝)、其他類放櫃子:不提供
+  assert.strictEqual(HK.canFreeze(mk('肉乾禮盒', '肉類', '常溫')), false);
+  assert.strictEqual(HK.canFreeze(mk('神祕東西', '其他', '櫃子')), false);
+  const r = HK.freezeSoon([mk('雞蛋', '其他', '冷藏'), mk('雞胸肉', '肉類', '冷藏')], '2026-11-28');
+  assert.deepEqual(r.changed.map(i => i.name), ['雞胸肉']);
+});
+
+test('freezeText:列出品名,超過三項縮寫', () => {
+  const it = n => ({ name: n });
+  assert.strictEqual(HK.freezeText([it('雞胸肉'), it('鮮奶')]), '已移到冷凍:「雞胸肉」、「鮮奶」(到期日為估算)');
+  assert.strictEqual(HK.freezeText(['a', 'b', 'c', 'd'].map(it)), '已移到冷凍:「a」、「b」、「c」 等 4 項(到期日為估算)');
+});

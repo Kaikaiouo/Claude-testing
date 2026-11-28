@@ -88,9 +88,20 @@
 
   // 移到冷凍:保守的冷凍保存天數(僅供估算)。已過期、已處理、已開封、已在冷凍或不適用的類別回傳 null
   const FREEZE_DAYS = { 肉類: 90, 蔬菜: 120, 水果: 120, 乳製品: 30, 其他: 60 };
+  // 品名看得出不適合直接冷凍:帶殼蛋與熟蛋、罐頭、乾貨零食、冷凍後會出水變質的生菜/瓜果/根莖與乳品甜點
+  // (生菜、黃瓜、蘿蔔、芹菜、生高麗菜、熟馬鈴薯、熟蛋、酸奶油、卡士達、美乃滋:K-State Extension「Foods that Do Not Freeze Well」)
+  const NO_FREEZE = /蛋(?![糕餅塔捲黃麵餃果])|罐頭|罐裝|泡麵|餅乾|洋芋片|零食|生菜|萵苣|沙拉|黃瓜|西瓜|芹菜|豆芽|(?<![胡紅])蘿蔔(?!糕)|高麗菜|馬鈴薯|優格|優酪|養樂多|乳酸|酸奶|布丁|鮮奶油|美乃滋|涼麵|茶碗蒸|豆花|愛玉|仙草|飼料/;
+  const BREAD = /麵包|吐司|土司|貝果|饅頭|包子/;
+  // 「其他」類什麼都有:只有冷藏中的(熟食、剩菜等)和麵包類才提供;肉與乳製品不在冷藏的多半是耐放包裝品,也不提供
+  function canFreeze(item) {
+    const name = String(item.name || ''), at = item.location;
+    if (!FREEZE_DAYS[item.category] || at === '冷凍' || at === '藥箱' || NO_FREEZE.test(name)) return false;
+    if (item.category === '其他') return at === '冷藏' || BREAD.test(name);
+    return !['肉類', '乳製品'].includes(item.category) || at === '冷藏';
+  }
   function freezeItem(item, today) {
     const days = FREEZE_DAYS[item.category];
-    if (!days || item.done || item.openedAt || item.location === '冷凍' || daysLeft(item.expiry, today) < 0) return null;
+    if (!canFreeze(item) || item.done || item.openedAt || daysLeft(item.expiry, today) < 0) return null;
     const expiry = addDays(today, days);
     return { days, item: Object.assign({}, item, { location: '冷凍', tempC: -18, expiryBeforeFreeze: item.expiry, locationBeforeFreeze: item.location, tempCBeforeFreeze: item.tempC, expiry: expiry > item.expiry ? expiry : item.expiry, estimated: true }) };
   }
@@ -108,6 +119,12 @@
       changed.push(i); return r.item;
     });
     return { items: out, changed };
+  }
+
+  // 一鍵冷凍後的提示:列出品名,使用者才知道要把哪幾樣實際拿去冷凍
+  function freezeText(changed) {
+    const names = changed.slice(0, 3).map(i => `「${i.name}」`).join('、');
+    return `已移到冷凍:${names}${changed.length > 3 ? ` 等 ${changed.length} 項` : ''}(到期日為估算)`;
   }
 
   // 讀入本機/雲端資料時的防呆:丟掉壞掉的項目(非物件、缺名稱或日期無效),避免整頁畫面壞掉
@@ -850,7 +867,7 @@ ${lines}
     return { days, overdue, later };
   }
 
-  const api = { shortDay, saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, shopPutText, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
+  const api = { shortDay, saveErrorText, CLOUD_LIMIT, cloudBytes, cloudLevel, syncText, bannerText, doneNote, cleanState, upcoming, CATEGORIES, LOCATIONS, SHELF_DAYS, todayStr, fmtDate, parseDay, addDays, addMonths, daysLeft, status, suggestExpiry, makeItem, sortByExpiry, SORTS, sortItems, filterItems, summarize, titleFor, sortDone, pruneDone, pickNewer, syncAction, adoptState, fromOtherTab, reminderDaysFrom, toICS, stats, exportBackup, parseBackup, mergeItems, makeShopItem, addShopping, sortShopping, groupShopping, shopDefaults, estimateExpiry, shopToForm, shopBoughtToItems, shopPutText, expiringText, shoppingText, toCSV, parseCSV, decodeCSV, applyEdit, dateWarnings, backupDue, findDuplicate, knownNames, frequentNames, shopSuggestions, recallItem, guessCategory, parseBulk, finishItem, finishExpired, restoreItems, removeItem, reinsertItem, removeShopping, restoreShopping, MILK_TYPES, milkPreset, OPENED_DAYS, openedDays, okOpenDays, openItem, openOne, unopenItem, freezeItem, canFreeze, freezeText, freezeSoon, unfreezeItem, FREEZE_DAYS, scanPrompt, parseScan, scanMultiPrompt, parseScanMulti, scanToBulkText, recipeCandidates, recipePrompt, parseRecipes, sampleItems, newId };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HK = api;
 })();
